@@ -111,6 +111,8 @@ class BookingDB(SQLModel, table=True):
     final_price: float | None = None
     provider_distance: str | None = None
     estimated_arrival: str | None = None
+    rating: int | None = None
+    review_comment: str | None = None
     created_at: datetime = SQLField(default_factory=datetime.utcnow)
     updated_at: datetime = SQLField(default_factory=datetime.utcnow)
 
@@ -282,6 +284,13 @@ class BookingUpdate(BaseModel):
     final_price: float | None = None
 
 
+class BookingRating(BaseModel):
+    """Schema for rating a booking."""
+    rating: int  # 1-5
+    comment: str | None = None
+
+
+
 class BookingPublic(BaseModel):
     """Schema for public booking response."""
     id: uuid.UUID
@@ -298,6 +307,8 @@ class BookingPublic(BaseModel):
     final_price: float | None = None
     provider_distance: str | None = None
     estimated_arrival: str | None = None
+    rating: int | None = None
+    review_comment: str | None = None
     created_at: datetime
     updated_at: datetime
 

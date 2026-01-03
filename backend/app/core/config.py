@@ -1,6 +1,7 @@
-import secrets
+import secrets as secret_lib
 import warnings
 from typing import Annotated, Any, Literal
+
 
 from pydantic import (
     AnyUrl,
@@ -11,8 +12,44 @@ from pydantic import (
     computed_field,
     model_validator,
 )
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from pydantic_settings import (
+    BaseSettings, 
+    SettingsConfigDict, 
+    PydanticBaseSettingsSource
+)
 from typing_extensions import Self
+
+from app.core.secrets_manager import secrets
+
+class SecretManagerSource(PydanticBaseSettingsSource):
+    def get_field_value(
+        self, field: Any, field_name: str
+    ) -> tuple[Any, str, bool]:
+        # Try to get from secrets manager
+        val = secrets.get(field_name)
+        if val is not None:
+             return val, field_name, False
+        return None, field_name, False
+
+    def prepare_field_value(
+        self, field_name: str, field: Any, value: Any, value_is_complex: bool
+    ) -> Any:
+        return value
+
+    def __call__(self) -> dict[str, Any]:
+        # Helper to return all secrets for Pydantic to merge
+        d = {}
+        # We iterate over expected fields? Or just return all secrets?
+        # Getting all secrets is easier
+        for k, v in secrets.all_secrets.items():
+            d[k] = v
+        # Also validation for case-insensitivity? 
+        # Pydantic v2 source implementation is slightly different.
+        # Simple dict return usually works for custom sources in v1, 
+        # but in v2 we need to implement __call__ returning a dict.
+        return d
+
 
 
 def parse_cors(v: Any) -> list[str] | str:
@@ -38,8 +75,26 @@ class Settings(BaseSettings):
         env_ignore_empty=True,
         extra="ignore",
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            SecretManagerSource(settings_cls),
+            file_secret_settings,
+        )
+
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = secrets.token_urlsafe(32)
+    SECRET_KEY: str = secret_lib.token_urlsafe(32)
     # 60 minutes * 24 hours * 8 days = 8 days
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
     FRONTEND_HOST: str = "http://localhost:5173"

@@ -12,6 +12,7 @@ from app.api.deps import CurrentUser, SessionDep
 from app.booking_models import (
     BookingCreate,
     BookingDB,
+    BookingRating,
     BookingsPublic,
     BookingUpdate,
     BookingWithDetails,
@@ -264,6 +265,50 @@ def cancel_booking(
     return MessageResponse(message="Booking cancelled successfully")
 
 
+
+@router.post("/{booking_id}/rate", response_model=MessageResponse)
+def rate_booking(
+    booking_id: uuid.UUID,
+    rating_in: BookingRating,
+    current_user: CurrentUser,
+    session: SessionDep,
+) -> Any:
+    """Rate a completed booking."""
+    user_id = current_user.id
+    booking = session.get(BookingDB, booking_id)
+
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if booking.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    if booking.status != "completed":
+        raise HTTPException(status_code=400, detail="Booking must be completed to rate")
+
+    booking.rating = rating_in.rating
+    booking.review_comment = rating_in.comment
+    session.add(booking)
+    session.commit()
+
+    # Update Provider Rating
+    if booking.provider_id:
+        from sqlalchemy import func
+        statement = select(func.avg(BookingDB.rating)).where(
+            BookingDB.provider_id == booking.provider_id,
+            BookingDB.rating != None
+        )
+        avg_rating = session.exec(statement).first()
+        
+        provider = session.get(ProviderDB, booking.provider_id)
+        if provider and avg_rating:
+            provider.rating = float(avg_rating)
+            session.add(provider)
+            session.commit()
+
+    return MessageResponse(message="Rating submitted successfully")
+
+
 def _enrich_booking(session: SessionDep, booking: BookingDB) -> BookingWithDetails:
     """
     Enrich a booking with service and provider details.
@@ -298,6 +343,8 @@ def _enrich_booking(session: SessionDep, booking: BookingDB) -> BookingWithDetai
         final_price=booking.final_price,
         provider_distance=booking.provider_distance,
         estimated_arrival=booking.estimated_arrival,
+        rating=booking.rating,
+        review_comment=booking.review_comment,
         created_at=booking.created_at,
         updated_at=booking.updated_at,
         service=service,

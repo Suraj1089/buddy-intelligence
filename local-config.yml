@@ -1,0 +1,42 @@
+project:
+  name: Buddy Intelligence
+  version: 0.1.0
+environment: local
+public:
+  DOMAIN: localhost
+  FRONTEND_HOST: http://localhost:8080
+  ENVIRONMENT: local
+  PROJECT_NAME: '"Full Stack FastAPI Project"'
+  STACK_NAME: full-stack-fastapi-project
+  BACKEND_CORS_ORIGINS: '"http://localhost,http://localhost:5173,http://localhost:8080,http://localhost:8081,https://localhost,https://localhost:5173,http://localhost.tiangolo.com"'
+  SECRET_KEY: changethis
+  FIRST_SUPERUSER: admin@example.com
+  FIRST_SUPERUSER_PASSWORD: changethis
+  SMTP_HOST: ''
+  SMTP_USER: ''
+  SMTP_PASSWORD: ''
+  EMAILS_FROM_EMAIL: info@example.com
+  SMTP_TLS: 'True'
+  SMTP_SSL: 'False'
+  SMTP_PORT: '587'
+  POSTGRES_SERVER: localhost
+  POSTGRES_PORT: '6432'
+  POSTGRES_DB: buddy_app
+  POSTGRES_USER: surajpisal
+  REDIS_URL: redis://localhost:6379/0
+  SENTRY_DSN: ''
+  DOCKER_IMAGE_BACKEND: backend
+  DOCKER_IMAGE_FRONTEND: frontend
+  SUPABASE_URL: http://localhost:54321
+  VITE_API_URL: http://localhost:8000
+  VITE_FIREBASE_AUTH_DOMAIN: buddy-qa-5b0b4.firebaseapp.com
+  VITE_FIREBASE_PROJECT_ID: buddy-qa-5b0b4
+  VITE_FIREBASE_STORAGE_BUCKET: buddy-qa-5b0b4.firebasestorage.app
+  VITE_FIREBASE_MESSAGING_SENDER_ID: '786749132916'
+  VITE_FIREBASE_APP_ID: 1:786749132916:web:9e34af561fde00bdedc121
+  VITE_FIREBASE_MEASUREMENT_ID: G-XLXT34PDKN
+secrets:
+  POSTGRES_PASSWORD: gAAAAABpWUxOYtSH8vjOh1R7FFNu7OMtekHfhzeJJseQTHw5VGH5O2cghNbxtE1XcsJpT3ejaFpkM9KQV1H8J4MxwY8fo9cS-A==
+  SUPABASE_SERVICE_KEY: gAAAAABpWUxOruEdGLH0eOoYG0V8fpQ6ZI0hwPGTbZPY-Vo1W8KEOJnP7EdFk1XI2IxapRU5C69uFQ1p6SWtTDpGv4G5YNWE0M7oJgHBBkLxLoMQsY_Wh8g=
+  VITE_MAPBOX_TOKEN: gAAAAABpWUxOL6ezXDPpGBymKb-ZbAXEnmeOq69Wmg7odx3Wdns6kFl1TwNM2ZtjHjhXU7_PSqLKOWi3bvnkmFvNc9ElZ_8GwAujtwhVHIvUCQCEBI3mzNFjrpRimR7XNOCDn1Kt6yT9gFJvCLPpWs0o1yIdwi7FiyP4j-8riA6glgRc8ZZjBOsY-uIiGYX-IhjbE23NwqIAWDt0boPAqyHBCGrjUmlQHA==
+  VITE_FIREBASE_API_KEY: gAAAAABpWUxO3dS1363MB3y904bj4nQhidDb-UkPyDigKMEoNAkYmZumz_o9NkZp_8WZE33keFtmz-YwxJOrXTcTme72PEx8jGOzB_ufK7IXUwh1GW0VGQQlp6TBUcAGp8ibKsaJ39bA
