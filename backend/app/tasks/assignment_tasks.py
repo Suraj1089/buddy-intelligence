@@ -3,7 +3,7 @@ Assignment background tasks for auto-assigning providers to bookings.
 """
 import uuid
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from celery import shared_task
 from sqlmodel import Session, select
@@ -151,6 +151,22 @@ def check_bookings_needing_reassignment(session: Session) -> None:
     session.commit()
 
 
+import math
+
+def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate distance in km using Haversine formula"""
+    R = 6371  # Earth radius in km
+    
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) * math.sin(dlat / 2) +
+         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+         math.sin(dlon / 2) * math.sin(dlon / 2))
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    return R * c
+
+
 def find_matching_providers(session: Session, booking: BookingDB) -> List[Dict[str, Any]]:
     """
     Find and score providers for a booking.
@@ -177,12 +193,31 @@ def find_matching_providers(session: Session, booking: BookingDB) -> List[Dict[s
     ).all()
     
     scored_providers = []
+    MAX_DISTANCE_KM = 20.0
     
     for provider in providers:
-        score = calculate_provider_score(session, provider, booking)
+        distance = None
+        
+        # Calculate distance if coordinates available
+        if booking.latitude and booking.longitude and provider.latitude and provider.longitude:
+            distance = calculate_distance(
+                booking.latitude, booking.longitude,
+                provider.latitude, provider.longitude
+            )
+            
+            # Filter matches too far away
+            if distance > MAX_DISTANCE_KM:
+                continue
+                
+        # If booking requires location matching but provider has no location, skip
+        elif booking.latitude and (not provider.latitude or not provider.longitude):
+            continue
+            
+        score = calculate_provider_score(session, provider, booking, distance)
         scored_providers.append({
             "provider_id": provider.id,
             "score": score,
+            "distance": distance
         })
     
     # Sort by score descending
@@ -191,7 +226,12 @@ def find_matching_providers(session: Session, booking: BookingDB) -> List[Dict[s
     return scored_providers
 
 
-def calculate_provider_score(session: Session, provider: ProviderDB, booking: BookingDB) -> float:
+def calculate_provider_score(
+    session: Session, 
+    provider: ProviderDB, 
+    booking: BookingDB,
+    distance: Optional[float] = None
+) -> float:
     """
     Calculate a score for a provider based on multiple factors.
     Higher score = better match.
@@ -209,6 +249,11 @@ def calculate_provider_score(session: Session, provider: ProviderDB, booking: Bo
     
     # Service match bonus
     score += 30.0
+    
+    # Distance bonus (0-20 points)
+    if distance is not None:
+        # Closer is better. MAX bonus at 0km, 0 bonus at 20km.
+        score += max(0, 20 - distance)
     
     # Workload penalty - fewer active bookings is better
     active_bookings = session.exec(

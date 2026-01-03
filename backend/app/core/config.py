@@ -18,9 +18,17 @@ from typing_extensions import Self
 def parse_cors(v: Any) -> list[str] | str:
     if isinstance(v, str) and not v.startswith("["):
         return [i.strip() for i in v.split(",") if i.strip()]
-    elif isinstance(v, list | str):
+    if isinstance(v, list | str):
         return v
     raise ValueError(v)
+
+
+def parse_port(v: Any) -> int:
+    if isinstance(v, str):
+        if ":" in v:
+            v = v.split(":")[0]
+        return int(v)
+    return v
 
 
 class Settings(BaseSettings):
@@ -51,7 +59,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str
     SENTRY_DSN: HttpUrl | None = None
     POSTGRES_SERVER: str
-    POSTGRES_PORT: int = 5432
+    POSTGRES_PORT: Annotated[int, BeforeValidator(parse_port)] = 5432
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = ""

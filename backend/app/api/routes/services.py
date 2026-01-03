@@ -4,80 +4,76 @@ API routes for service categories and services.
 from typing import Any, Optional
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query, Depends
-from app.api.deps import get_current_user
+from fastapi import APIRouter, HTTPException, Query
+from sqlmodel import select
 
-from app.core.supabase_client import get_supabase_client
+from app.api.deps import SessionDep
 from app.booking_models import (
+    ServiceCategoryDB,
+    ServiceDB,
     ServiceCategoryPublic,
     ServiceCategoriesPublic,
     ServicePublic,
     ServicesPublic,
 )
 
-router = APIRouter(prefix="/services", tags=["services"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/services", tags=["services"])
 
 
 @router.get("/categories", response_model=ServiceCategoriesPublic)
-def list_categories() -> Any:
+def list_categories(session: SessionDep) -> Any:
     """
     Get all service categories.
     """
-    supabase = get_supabase_client()
+    statement = select(ServiceCategoryDB).order_by(ServiceCategoryDB.name)
+    categories_db = session.exec(statement).all()
     
-    response = supabase.table("service_categories").select("*").order("name").execute()
-    
-    categories = [ServiceCategoryPublic(**item) for item in response.data]
+    categories = [ServiceCategoryPublic.model_validate(item) for item in categories_db]
     
     return ServiceCategoriesPublic(data=categories, count=len(categories))
 
 
 @router.get("/categories/{category_id}", response_model=ServiceCategoryPublic)
-def get_category(category_id: uuid.UUID) -> Any:
+def get_category(category_id: uuid.UUID, session: SessionDep) -> Any:
     """
     Get a specific service category by ID.
     """
-    supabase = get_supabase_client()
+    category = session.get(ServiceCategoryDB, category_id)
     
-    response = supabase.table("service_categories").select("*").eq("id", str(category_id)).single().execute()
-    
-    if not response.data:
+    if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     
-    return ServiceCategoryPublic(**response.data)
+    return ServiceCategoryPublic.model_validate(category)
 
 
 @router.get("", response_model=ServicesPublic)
 def list_services(
+    session: SessionDep,
     category_id: Optional[uuid.UUID] = Query(None, description="Filter by category ID")
 ) -> Any:
     """
     Get all services, optionally filtered by category.
     """
-    supabase = get_supabase_client()
-    
-    query = supabase.table("services").select("*").order("name")
+    statement = select(ServiceDB).order_by(ServiceDB.name)
     
     if category_id:
-        query = query.eq("category_id", str(category_id))
+        statement = statement.where(ServiceDB.category_id == category_id)
     
-    response = query.execute()
+    services_db = session.exec(statement).all()
     
-    services = [ServicePublic(**item) for item in response.data]
+    services = [ServicePublic.model_validate(item) for item in services_db]
     
     return ServicesPublic(data=services, count=len(services))
 
 
 @router.get("/{service_id}", response_model=ServicePublic)
-def get_service(service_id: uuid.UUID) -> Any:
+def get_service(service_id: uuid.UUID, session: SessionDep) -> Any:
     """
     Get a specific service by ID.
     """
-    supabase = get_supabase_client()
+    service = session.get(ServiceDB, service_id)
     
-    response = supabase.table("services").select("*").eq("id", str(service_id)).single().execute()
-    
-    if not response.data:
+    if not service:
         raise HTTPException(status_code=404, detail="Service not found")
     
-    return ServicePublic(**response.data)
+    return ServicePublic.model_validate(service)

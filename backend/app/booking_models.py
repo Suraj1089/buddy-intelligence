@@ -72,6 +72,8 @@ class ProviderDB(SQLModel, table=True):
     rating: Optional[float] = None
     experience_years: Optional[int] = None
     is_available: bool = SQLField(default=True)
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     avatar_url: Optional[str] = None
     created_at: datetime = SQLField(default_factory=datetime.utcnow)
     updated_at: datetime = SQLField(default_factory=datetime.utcnow)
@@ -99,9 +101,11 @@ class BookingDB(SQLModel, table=True):
     user_id: uuid.UUID
     service_id: Optional[uuid.UUID] = SQLField(foreign_key="services.id")
     provider_id: Optional[uuid.UUID] = SQLField(foreign_key="providers.id")
-    service_date: str  # Stored as string in DB
-    service_time: str
+    service_date: date  # Stored as date in DB
+    service_time: str   # Keep as string for now if it's VARCHAR in DB
     location: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     special_instructions: Optional[str] = None
     status: Optional[str] = SQLField(default="pending")
     estimated_price: Optional[float] = None
@@ -236,11 +240,33 @@ class ProviderPublic(ProviderBase):
         from_attributes = True
 
 
+class ProviderServiceUpdate(BaseModel):
+    """Schema for updating a provider service."""
+    custom_price: Optional[float] = None
+
+
+class ProviderServicePublic(BaseModel):
+    """Schema for public provider service response."""
+    id: uuid.UUID
+    service_id: uuid.UUID
+    custom_price: Optional[float] = None
+    service: Optional[ServicePublic] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class ProviderServicesListPublic(BaseModel):
+    """Schema for list of provider services."""
+    data: List[ProviderServicePublic]
+    count: int
+
+
 # --- Booking Schemas ---
 class BookingBase(BaseModel):
     """Base booking schema."""
     service_id: uuid.UUID
-    service_date: str
+    service_date: date
     service_time: str
     location: str
     special_instructions: Optional[str] = None
@@ -264,7 +290,7 @@ class BookingPublic(BaseModel):
     user_id: uuid.UUID
     service_id: Optional[uuid.UUID] = None
     provider_id: Optional[uuid.UUID] = None
-    service_date: str
+    service_date: date
     service_time: str
     location: str
     special_instructions: Optional[str] = None
@@ -280,10 +306,18 @@ class BookingPublic(BaseModel):
         from_attributes = True
 
 
+class ProfilePublic(BaseModel):
+    """Schema for public profile response."""
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
 class BookingWithDetails(BookingPublic):
     """Booking with related service and provider details."""
     service: Optional[ServicePublic] = None
     provider: Optional[ProviderPublic] = None
+    user_profile: Optional[ProfilePublic] = None
 
 
 class BookingsPublic(BaseModel):

@@ -154,9 +154,14 @@ class TestFindMatchingProviders:
         def mock_exec(*args, **kwargs):
             result = MagicMock()
             if call_count[0] == 0:
+                # First call: Get provider services
                 result.all.return_value = [ps1, ps2]
-            else:
+            elif call_count[0] == 1:
+                # Second call: Get providers
                 result.all.return_value = [provider1, provider2]
+            else:
+                # Subsequent calls: Get active bookings (workload)
+                result.all.return_value = []
             call_count[0] += 1
             return result
         
