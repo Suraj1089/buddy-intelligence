@@ -57,20 +57,53 @@ upgrade: ## Upgrade all dependencies to latest versions
 	cd $(BACKEND_DIR) && $(UV) sync --upgrade
 
 # ------------------------------------------------------------------------------
+# VIRTUAL ENVIRONMENT
+# ------------------------------------------------------------------------------
+
+.PHONY: venv
+venv: ## Create virtual environment using uv
+	cd $(BACKEND_DIR) && $(UV) venv
+
+.PHONY: venv-activate
+venv-activate: ## Show command to activate virtual environment
+	@echo "Run this command to activate the virtual environment:"
+	@echo "  source $(BACKEND_DIR)/.venv/bin/activate"
+
+.PHONY: venv-deactivate
+venv-deactivate: ## Show command to deactivate virtual environment
+	@echo "Run this command to deactivate:"
+	@echo "  deactivate"
+
+.PHONY: venv-clean
+venv-clean: ## Remove virtual environment
+	rm -rf $(BACKEND_DIR)/.venv
+	@echo "Virtual environment removed"
+
+.PHONY: venv-info
+venv-info: ## Show virtual environment info
+	@echo "Virtual Environment Location: $(BACKEND_DIR)/.venv"
+	@echo ""
+	@echo "uv automatically manages the virtual environment."
+	@echo "All 'make' commands use 'uv run' which activates the venv automatically."
+	@echo ""
+	@echo "For manual activation, run:"
+	@echo "  source $(BACKEND_DIR)/.venv/bin/activate"
+
+# ------------------------------------------------------------------------------
 # DEVELOPMENT SERVER
 # ------------------------------------------------------------------------------
 
 .PHONY: dev
 dev: ## Start FastAPI development server with hot reload
-	cd $(BACKEND_DIR) && $(UV) run fastapi dev app/main.py
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run fastapi dev app/main.py
 
 .PHONY: run
 run: ## Start FastAPI production server
-	cd $(BACKEND_DIR) && $(UV) run uvicorn $(APP_MODULE) --host 0.0.0.0 --port 8000
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run uvicorn $(APP_MODULE) --host 0.0.0.0 --port 8000
 
 .PHONY: dev-reload
 dev-reload: ## Start development server with more verbose logging
-	cd $(BACKEND_DIR) && $(UV) run uvicorn $(APP_MODULE) --reload --log-level debug
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run uvicorn $(APP_MODULE) --reload --log-level debug
 
 # ------------------------------------------------------------------------------
 # CELERY (BACKGROUND TASKS)
@@ -78,21 +111,21 @@ dev-reload: ## Start development server with more verbose logging
 
 .PHONY: celery
 celery: ## Start Celery worker for background tasks
-	cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) worker -l info
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) worker -l info
 
 .PHONY: celery-beat
 celery-beat: ## Start Celery beat scheduler for periodic tasks
-	cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) beat -l info
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) beat -l info
 
 .PHONY: celery-flower
 celery-flower: ## Start Flower (Celery monitoring dashboard) on port 5555
-	cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) flower --port=5555
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) flower --port=5555
 
 .PHONY: celery-all
 celery-all: ## Start both Celery worker and beat in background (use with caution)
 	@echo "Starting Celery worker and beat..."
-	cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) worker -l info --detach
-	cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) beat -l info --detach
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) worker -l info --detach
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) beat -l info --detach
 	@echo "Celery services started in background"
 
 # ------------------------------------------------------------------------------
@@ -117,27 +150,63 @@ redis-flush: ## Flush all Redis data (WARNING: deletes all data)
 
 .PHONY: db-upgrade
 db-upgrade: ## Run database migrations (upgrade to latest)
-	cd $(BACKEND_DIR) && $(UV) run alembic upgrade head
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run alembic upgrade head
 
 .PHONY: db-downgrade
 db-downgrade: ## Rollback last database migration
-	cd $(BACKEND_DIR) && $(UV) run alembic downgrade -1
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run alembic downgrade -1
 
 .PHONY: db-revision
 db-revision: ## Create a new migration (usage: make db-revision msg="description")
-	cd $(BACKEND_DIR) && $(UV) run alembic revision --autogenerate -m "$(msg)"
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run alembic revision --autogenerate -m "$(msg)"
 
 .PHONY: db-history
 db-history: ## Show migration history
-	cd $(BACKEND_DIR) && $(UV) run alembic history
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run alembic history
 
 .PHONY: db-current
 db-current: ## Show current migration version
-	cd $(BACKEND_DIR) && $(UV) run alembic current
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run alembic current
 
 .PHONY: db-init
 db-init: ## Initialize database with initial data
-	cd $(BACKEND_DIR) && $(UV) run python -m app.initial_data
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run python -m app.initial_data
+
+.PHONY: db-create
+db-create: ## Create new database (requires postgres user access)
+	@echo "Creating database 'buddy_app'..."
+	psql -U surajpisal -p 6432 -c "CREATE DATABASE buddy_app;" || echo "Database may already exist"
+	@echo "Database created!"
+
+.PHONY: db-drop
+db-drop: ## Drop database (WARNING: deletes all data)
+	@echo "WARNING: This will delete all data!"
+	@read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ] && \
+		psql -U surajpisal -p 6432 -c "DROP DATABASE IF EXISTS buddy_app;" || echo "Cancelled"
+
+.PHONY: db-reset
+db-reset: ## Reset database (drop, create, migrate, seed)
+	@echo "Resetting database..."
+	psql -U surajpisal -p 6432 -c "DROP DATABASE IF EXISTS buddy_app;"
+	psql -U surajpisal -p 6432 -c "CREATE DATABASE buddy_app;"
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run alembic upgrade head
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run python -m app.initial_data
+	@echo "Database reset complete!"
+
+.PHONY: db-migrate
+db-migrate: db-upgrade ## Alias for db-upgrade (run migrations)
+
+.PHONY: db-seed
+db-seed: ## Seed database with sample data
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run python scripts/seed_data.py
+
+.PHONY: db-setup
+db-setup: db-create db-upgrade db-init ## Full database setup: create, migrate, init
+	@echo "Database setup complete!"
+
+.PHONY: db-shell
+db-shell: ## Open psql shell to the database
+	psql -U surajpisal -d buddy_app -p 6432
 
 # ------------------------------------------------------------------------------
 # TESTING
@@ -145,39 +214,39 @@ db-init: ## Initialize database with initial data
 
 .PHONY: test
 test: ## Run all tests
-	cd $(BACKEND_DIR) && $(UV) run pytest -v
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run pytest -v
 
 .PHONY: test-cov
 test-cov: ## Run tests with coverage report
-	cd $(BACKEND_DIR) && $(UV) run pytest --cov=app --cov-report=term-missing --cov-report=html
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run pytest --cov=app --cov-report=term-missing --cov-report=html
 
 .PHONY: test-auth
 test-auth: ## Run only authentication tests
-	cd $(BACKEND_DIR) && $(UV) run pytest tests/test_auth.py -v
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run pytest tests/test_auth.py -v
 
 .PHONY: test-bookings
 test-bookings: ## Run only booking tests
-	cd $(BACKEND_DIR) && $(UV) run pytest tests/test_bookings.py -v
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run pytest tests/test_bookings.py -v
 
 .PHONY: test-assignments
 test-assignments: ## Run only assignment tests
-	cd $(BACKEND_DIR) && $(UV) run pytest tests/test_assignments.py -v
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run pytest tests/test_assignments.py -v
 
 .PHONY: test-services
 test-services: ## Run only services tests
-	cd $(BACKEND_DIR) && $(UV) run pytest tests/test_services.py -v
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run pytest tests/test_services.py -v
 
 .PHONY: test-providers
 test-providers: ## Run only provider tests
-	cd $(BACKEND_DIR) && $(UV) run pytest tests/test_providers.py -v
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run pytest tests/test_providers.py -v
 
 .PHONY: test-fast
 test-fast: ## Run tests without slow tests
-	cd $(BACKEND_DIR) && $(UV) run pytest -v -m "not slow"
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run pytest -v -m "not slow"
 
 .PHONY: test-watch
 test-watch: ## Run tests in watch mode (requires pytest-watch)
-	cd $(BACKEND_DIR) && $(UV) run ptw
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run ptw
 
 # ------------------------------------------------------------------------------
 # LINTING & FORMATTING
@@ -185,19 +254,19 @@ test-watch: ## Run tests in watch mode (requires pytest-watch)
 
 .PHONY: lint
 lint: ## Run linters (ruff)
-	cd $(BACKEND_DIR) && $(UV) run ruff check .
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run ruff check .
 
 .PHONY: lint-fix
 lint-fix: ## Run linters and auto-fix issues
-	cd $(BACKEND_DIR) && $(UV) run ruff check . --fix
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run ruff check . --fix
 
 .PHONY: format
 format: ## Format code with ruff
-	cd $(BACKEND_DIR) && $(UV) run ruff format .
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run ruff format .
 
 .PHONY: format-check
 format-check: ## Check if code is formatted
-	cd $(BACKEND_DIR) && $(UV) run ruff format . --check
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run ruff format . --check
 
 .PHONY: type-check
 type-check: ## Run type checking with mypy

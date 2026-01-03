@@ -5,10 +5,10 @@ from typing import Any, Optional
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query, Depends, Header
+from fastapi import APIRouter, HTTPException, Query, Depends
 
 from app.core.supabase_client import get_supabase_client
-from app.core import security
+from app.api.deps import CurrentUser
 from app.booking_models import (
     BookingCreate,
     BookingUpdate,
@@ -24,42 +24,7 @@ from app.booking_models import (
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
 
-def get_user_id_from_token(authorization: str = Header(...)) -> uuid.UUID:
-    """
-    Extract user ID from JWT token in Authorization header.
-    Supports both Supabase tokens and FastAPI-native tokens.
-    """
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization header")
-    
-    token = authorization.replace("Bearer ", "")
-    
-    # First try FastAPI native token
-    payload = security.decode_token(token)
-    if payload and payload.get("sub"):
-        return uuid.UUID(payload["sub"])
-    
-    # Fallback to Supabase token validation
-    supabase = get_supabase_client()
-    try:
-        user = supabase.auth.get_user(token)
-        if not user or not user.user:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        return uuid.UUID(user.user.id)
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
 
-
-def get_optional_user_id(authorization: Optional[str] = Header(None)) -> Optional[uuid.UUID]:
-    """
-    Optionally extract user ID from token if present.
-    """
-    if not authorization:
-        return None
-    try:
-        return get_user_id_from_token(authorization)
-    except:
-        return None
 
 
 def generate_booking_number() -> str:
@@ -75,13 +40,13 @@ def generate_booking_number() -> str:
 @router.post("", response_model=BookingWithDetails)
 def create_booking(
     booking_in: BookingCreate,
-    authorization: str = Header(...)
+    current_user: CurrentUser,
 ) -> Any:
     """
     Create a new booking.
     Triggers background task for auto-assignment to providers.
     """
-    user_id = get_user_id_from_token(authorization)
+    user_id = current_user.id
     supabase = get_supabase_client()
     
     # Get service details for estimated price if not provided
@@ -131,7 +96,7 @@ def create_booking(
 
 @router.get("", response_model=BookingsPublic)
 def list_bookings(
-    authorization: str = Header(...),
+    current_user: CurrentUser,
     status: Optional[str] = Query(None, description="Filter by status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -139,7 +104,7 @@ def list_bookings(
     """
     Get all bookings for the authenticated user.
     """
-    user_id = get_user_id_from_token(authorization)
+    user_id = current_user.id
     supabase = get_supabase_client()
     
     query = supabase.table("bookings").select("*").eq("user_id", str(user_id)).order("created_at", desc=True)
@@ -161,12 +126,12 @@ def list_bookings(
 @router.get("/{booking_id}", response_model=BookingWithDetails)
 def get_booking(
     booking_id: uuid.UUID,
-    authorization: str = Header(...)
+    current_user: CurrentUser,
 ) -> Any:
     """
     Get a specific booking by ID.
     """
-    user_id = get_user_id_from_token(authorization)
+    user_id = current_user.id
     supabase = get_supabase_client()
     
     response = supabase.table("bookings").select("*").eq("id", str(booking_id)).single().execute()
@@ -190,12 +155,12 @@ def get_booking(
 def update_booking_status(
     booking_id: uuid.UUID,
     status_update: BookingUpdate,
-    authorization: str = Header(...)
+    current_user: CurrentUser,
 ) -> Any:
     """
     Update booking status.
     """
-    user_id = get_user_id_from_token(authorization)
+    user_id = current_user.id
     supabase = get_supabase_client()
     
     # Get current booking
@@ -238,12 +203,12 @@ def update_booking_status(
 @router.delete("/{booking_id}", response_model=MessageResponse)
 def cancel_booking(
     booking_id: uuid.UUID,
-    authorization: str = Header(...)
+    current_user: CurrentUser,
 ) -> Any:
     """
     Cancel a booking (set status to cancelled).
     """
-    user_id = get_user_id_from_token(authorization)
+    user_id = current_user.id
     supabase = get_supabase_client()
     
     # Get current booking

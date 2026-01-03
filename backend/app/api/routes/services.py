@@ -4,7 +4,8 @@ API routes for service categories and services.
 from typing import Any, Optional
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
+from app.api.deps import get_current_user
 
 from app.core.supabase_client import get_supabase_client
 from app.booking_models import (
@@ -14,7 +15,7 @@ from app.booking_models import (
     ServicesPublic,
 )
 
-router = APIRouter(prefix="/services", tags=["services"])
+router = APIRouter(prefix="/services", tags=["services"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/categories", response_model=ServiceCategoriesPublic)
