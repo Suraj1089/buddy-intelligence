@@ -31,4 +31,8 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.assignment_tasks.check_expired_assignments",
         "schedule": 60.0,  # Every minute
     },
+    "process-unassigned-bookings": {
+        "task": "app.tasks.assignment_tasks.process_unassigned_bookings",
+        "schedule": 60.0,  # Every minute
+    },
 }

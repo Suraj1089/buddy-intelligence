@@ -10,7 +10,6 @@ Tests cover:
 """
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session
 
 from app.core.config import settings
 
@@ -26,7 +25,7 @@ def get_auth_headers(client: TestClient, email: str = "bookinguser@example.com")
             "full_name": "Booking Test User",
         },
     )
-    
+
     # Login to get token
     response = client.post(
         f"{settings.API_V1_STR}/auth/login/json",
@@ -50,10 +49,10 @@ class TestCreateBooking:
         """Test successful booking creation."""
         headers = get_auth_headers(client)
         service_id = get_service_id(client)
-        
+
         if not service_id:
             pytest.skip("No services available for testing")
-        
+
         response = client.post(
             f"{settings.API_V1_STR}/bookings",
             headers=headers,
@@ -75,10 +74,10 @@ class TestCreateBooking:
     def test_create_booking_unauthenticated(self, client: TestClient) -> None:
         """Test booking creation without auth fails."""
         service_id = get_service_id(client)
-        
+
         if not service_id:
             pytest.skip("No services available for testing")
-        
+
         response = client.post(
             f"{settings.API_V1_STR}/bookings",
             json={
@@ -93,7 +92,7 @@ class TestCreateBooking:
     def test_create_booking_invalid_service(self, client: TestClient) -> None:
         """Test booking creation with invalid service fails."""
         headers = get_auth_headers(client)
-        
+
         response = client.post(
             f"{settings.API_V1_STR}/bookings",
             headers=headers,
@@ -114,7 +113,7 @@ class TestListBookings:
     def test_list_bookings(self, client: TestClient) -> None:
         """Test listing user's bookings."""
         headers = get_auth_headers(client, "listbookings@example.com")
-        
+
         response = client.get(
             f"{settings.API_V1_STR}/bookings",
             headers=headers,
@@ -128,7 +127,7 @@ class TestListBookings:
     def test_list_bookings_with_status_filter(self, client: TestClient) -> None:
         """Test listing bookings filtered by status."""
         headers = get_auth_headers(client, "filterbookings@example.com")
-        
+
         response = client.get(
             f"{settings.API_V1_STR}/bookings",
             headers=headers,
@@ -136,7 +135,7 @@ class TestListBookings:
         )
         assert response.status_code == 200
         data = response.json()
-        
+
         # All returned bookings should have pending status
         for booking in data["data"]:
             assert booking["status"] == "pending"
@@ -154,10 +153,10 @@ class TestGetBooking:
         """Test getting a booking owned by the user."""
         headers = get_auth_headers(client, "getbooking@example.com")
         service_id = get_service_id(client)
-        
+
         if not service_id:
             pytest.skip("No services available for testing")
-        
+
         # Create a booking
         create_response = client.post(
             f"{settings.API_V1_STR}/bookings",
@@ -170,7 +169,7 @@ class TestGetBooking:
             },
         )
         booking_id = create_response.json()["id"]
-        
+
         # Get the booking
         response = client.get(
             f"{settings.API_V1_STR}/bookings/{booking_id}",
@@ -184,10 +183,10 @@ class TestGetBooking:
         headers1 = get_auth_headers(client, "owner@example.com")
         headers2 = get_auth_headers(client, "other@example.com")
         service_id = get_service_id(client)
-        
+
         if not service_id:
             pytest.skip("No services available for testing")
-        
+
         # User 1 creates a booking
         create_response = client.post(
             f"{settings.API_V1_STR}/bookings",
@@ -200,7 +199,7 @@ class TestGetBooking:
             },
         )
         booking_id = create_response.json()["id"]
-        
+
         # User 2 tries to get it
         response = client.get(
             f"{settings.API_V1_STR}/bookings/{booking_id}",
@@ -216,10 +215,10 @@ class TestCancelBooking:
         """Test cancelling own booking."""
         headers = get_auth_headers(client, "cancelbooking@example.com")
         service_id = get_service_id(client)
-        
+
         if not service_id:
             pytest.skip("No services available for testing")
-        
+
         # Create a booking
         create_response = client.post(
             f"{settings.API_V1_STR}/bookings",
@@ -232,7 +231,7 @@ class TestCancelBooking:
             },
         )
         booking_id = create_response.json()["id"]
-        
+
         # Cancel the booking
         response = client.delete(
             f"{settings.API_V1_STR}/bookings/{booking_id}",
@@ -246,10 +245,10 @@ class TestCancelBooking:
         headers1 = get_auth_headers(client, "cancelowner@example.com")
         headers2 = get_auth_headers(client, "cancelother@example.com")
         service_id = get_service_id(client)
-        
+
         if not service_id:
             pytest.skip("No services available for testing")
-        
+
         # User 1 creates a booking
         create_response = client.post(
             f"{settings.API_V1_STR}/bookings",
@@ -262,7 +261,7 @@ class TestCancelBooking:
             },
         )
         booking_id = create_response.json()["id"]
-        
+
         # User 2 tries to cancel it
         response = client.delete(
             f"{settings.API_V1_STR}/bookings/{booking_id}",
@@ -278,10 +277,10 @@ class TestUpdateBookingStatus:
         """Test updating booking status as booking owner."""
         headers = get_auth_headers(client, "updatestatus@example.com")
         service_id = get_service_id(client)
-        
+
         if not service_id:
             pytest.skip("No services available for testing")
-        
+
         # Create a booking
         create_response = client.post(
             f"{settings.API_V1_STR}/bookings",
@@ -293,12 +292,12 @@ class TestUpdateBookingStatus:
                 "location": "Update Status Street",
             },
         )
-        
+
         if create_response.status_code != 200:
             pytest.skip("Could not create booking for testing")
-        
+
         booking_id = create_response.json()["id"]
-        
+
         # Update status
         response = client.patch(
             f"{settings.API_V1_STR}/bookings/{booking_id}/status",

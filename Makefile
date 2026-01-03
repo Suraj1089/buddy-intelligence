@@ -105,6 +105,11 @@ run: ## Start FastAPI production server
 dev-reload: ## Start development server with more verbose logging
 	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run uvicorn $(APP_MODULE) --reload --log-level debug
 
+.PHONY: shell
+shell: ## Start interactive IPython shell with app context
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run python interactive_shell.py
+
+
 # ------------------------------------------------------------------------------
 # CELERY (BACKGROUND TASKS)
 # ------------------------------------------------------------------------------

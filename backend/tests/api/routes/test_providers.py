@@ -31,7 +31,7 @@ def get_provider_auth_headers(client: TestClient) -> dict | None:
 def get_regular_user_headers(client: TestClient) -> dict:
     """Helper to get auth headers for a regular user."""
     email = "providertest_regular@example.com"
-    
+
     # Register if not exists
     client.post(
         f"{settings.API_V1_STR}/auth/register",
@@ -41,7 +41,7 @@ def get_regular_user_headers(client: TestClient) -> dict:
             "full_name": "Regular User",
         },
     )
-    
+
     # Login
     response = client.post(
         f"{settings.API_V1_STR}/auth/login/json",
@@ -59,7 +59,7 @@ class TestGetProviderMe:
         headers = get_provider_auth_headers(client)
         if not headers:
             pytest.skip("No provider user available for testing")
-        
+
         response = client.get(
             f"{settings.API_V1_STR}/providers/me",
             headers=headers,
@@ -72,7 +72,7 @@ class TestGetProviderMe:
     def test_get_provider_me_as_regular_user(self, client: TestClient) -> None:
         """Test getting provider profile as regular user fails."""
         headers = get_regular_user_headers(client)
-        
+
         response = client.get(
             f"{settings.API_V1_STR}/providers/me",
             headers=headers,
@@ -94,13 +94,13 @@ class TestUpdateProviderProfile:
         headers = get_provider_auth_headers(client)
         if not headers:
             pytest.skip("No provider user available for testing")
-        
+
         response = client.patch(
             f"{settings.API_V1_STR}/providers/me",
             headers=headers,
             json={"bio": "Updated bio for testing"},
         )
-        
+
         if response.status_code == 200:
             data = response.json()
             assert data["bio"] == "Updated bio for testing"
@@ -125,7 +125,7 @@ class TestGetProviderBookings:
         headers = get_provider_auth_headers(client)
         if not headers:
             pytest.skip("No provider user available for testing")
-        
+
         response = client.get(
             f"{settings.API_V1_STR}/providers/me/bookings",
             headers=headers,
@@ -148,16 +148,16 @@ class TestGetPublicProvider:
         """Test getting public provider info."""
         # First, get a provider ID from the providers list
         providers_response = client.get(f"{settings.API_V1_STR}/providers")
-        
+
         if providers_response.status_code != 200:
             pytest.skip("Providers list endpoint not available")
-        
+
         providers = providers_response.json().get("data", [])
         if not providers:
             pytest.skip("No providers available for testing")
-        
+
         provider_id = providers[0]["id"]
-        
+
         response = client.get(f"{settings.API_V1_STR}/providers/{provider_id}")
         assert response.status_code == 200
         data = response.json()

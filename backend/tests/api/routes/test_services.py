@@ -7,7 +7,6 @@ Tests cover:
 - Get service by ID
 - Filter services by category
 """
-import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
@@ -30,7 +29,7 @@ class TestServiceCategories:
         response = client.get(f"{settings.API_V1_STR}/services/categories")
         assert response.status_code == 200
         data = response.json()
-        
+
         if data["count"] > 0:
             category = data["data"][0]
             assert "id" in category
@@ -55,7 +54,7 @@ class TestServices:
         response = client.get(f"{settings.API_V1_STR}/services")
         assert response.status_code == 200
         data = response.json()
-        
+
         if data["count"] > 0:
             service = data["data"][0]
             assert "id" in service
@@ -68,7 +67,7 @@ class TestServices:
         # First get a category
         categories_response = client.get(f"{settings.API_V1_STR}/services/categories")
         categories = categories_response.json()["data"]
-        
+
         if len(categories) > 0:
             category_id = categories[0]["id"]
             response = client.get(
@@ -77,7 +76,7 @@ class TestServices:
             )
             assert response.status_code == 200
             data = response.json()
-            
+
             # All returned services should belong to this category
             for service in data["data"]:
                 assert service["category_id"] == category_id
@@ -87,7 +86,7 @@ class TestServices:
         # First get a service from the list
         services_response = client.get(f"{settings.API_V1_STR}/services")
         services = services_response.json()["data"]
-        
+
         if len(services) > 0:
             service_id = services[0]["id"]
             response = client.get(f"{settings.API_V1_STR}/services/{service_id}")

@@ -63,24 +63,24 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = ""
-    
+
     # Supabase configuration (for production PostgreSQL)
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_KEY: str = ""
     SUPABASE_JWT_SECRET: str | None = None
-    
+
     # Redis configuration
     REDIS_URL: str = "redis://localhost:6379/0"
-    
+
     # Celery configuration
     CELERY_BROKER_URL: str = ""
     CELERY_RESULT_BACKEND: str = ""
-    
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def celery_broker(self) -> str:
         return self.CELERY_BROKER_URL or self.REDIS_URL
-    
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def celery_backend(self) -> str:
@@ -134,6 +134,9 @@ class Settings(BaseSettings):
                 warnings.warn(message, stacklevel=1)
             else:
                 raise ValueError(message)
+
+    FIREBASE_CREDENTIALS_JSON: str | None = None
+    GOOGLE_APPLICATION_CREDENTIALS: str | None = None
 
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:

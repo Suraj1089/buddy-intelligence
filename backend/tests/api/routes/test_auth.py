@@ -46,7 +46,7 @@ class TestAuthRegister:
                 "full_name": "First User",
             },
         )
-        
+
         # Second registration with same email should fail
         response = client.post(
             f"{settings.API_V1_STR}/auth/register",
@@ -154,7 +154,7 @@ class TestAuthMe:
             },
         )
         token = register_response.json()["access_token"]
-        
+
         # Get current user
         response = client.get(
             f"{settings.API_V1_STR}/auth/me",
@@ -194,7 +194,7 @@ class TestAuthRefresh:
             },
         )
         token = register_response.json()["access_token"]
-        
+
         # Refresh token
         response = client.post(
             f"{settings.API_V1_STR}/auth/refresh",
@@ -221,7 +221,7 @@ class TestAuthLogout:
             },
         )
         token = register_response.json()["access_token"]
-        
+
         # Logout
         response = client.post(
             f"{settings.API_V1_STR}/auth/logout",

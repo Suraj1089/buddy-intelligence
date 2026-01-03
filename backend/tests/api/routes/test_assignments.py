@@ -38,7 +38,7 @@ class TestListPendingAssignments:
         headers = get_provider_auth_headers(client)
         if not headers:
             pytest.skip("No provider user available for testing")
-        
+
         response = client.get(
             f"{settings.API_V1_STR}/assignments/pending",
             headers=headers,
@@ -64,7 +64,7 @@ class TestListPendingAssignments:
                 "full_name": "Regular User",
             },
         )
-        
+
         # Login
         login_response = client.post(
             f"{settings.API_V1_STR}/auth/login/json",
@@ -72,7 +72,7 @@ class TestListPendingAssignments:
         )
         token = login_response.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
-        
+
         response = client.get(
             f"{settings.API_V1_STR}/assignments/pending",
             headers=headers,
@@ -89,7 +89,7 @@ class TestAcceptAssignment:
         headers = get_provider_auth_headers(client)
         if not headers:
             pytest.skip("No provider user available for testing")
-        
+
         response = client.post(
             f"{settings.API_V1_STR}/assignments/00000000-0000-0000-0000-000000000000/accept",
             headers=headers,
@@ -112,7 +112,7 @@ class TestDeclineAssignment:
         headers = get_provider_auth_headers(client)
         if not headers:
             pytest.skip("No provider user available for testing")
-        
+
         response = client.post(
             f"{settings.API_V1_STR}/assignments/00000000-0000-0000-0000-000000000000/decline",
             headers=headers,
@@ -135,16 +135,16 @@ class TestAssignmentIntegration:
         headers = get_provider_auth_headers(client)
         if not headers:
             pytest.skip("No provider user available for testing")
-        
+
         response = client.get(
             f"{settings.API_V1_STR}/assignments/pending",
             headers=headers,
         )
-        
+
         if response.status_code == 200:
             data = response.json()
             assert "data" in data
-            
+
             if len(data["data"]) > 0:
                 assignment = data["data"][0]
                 assert "id" in assignment

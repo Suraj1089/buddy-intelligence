@@ -1,4 +1,5 @@
 import uuid
+import datetime
 
 from pydantic import EmailStr
 from sqlmodel import Field, Relationship, SQLModel
@@ -21,6 +22,7 @@ class UserRegister(SQLModel):
     email: EmailStr = Field(max_length=255)
     password: str = Field(min_length=8, max_length=128)
     full_name: str | None = Field(default=None, max_length=255)
+    role: str = "user"
 
 
 # Properties to receive via API on update, all are optional
@@ -101,6 +103,7 @@ class Message(SQLModel):
 class Token(SQLModel):
     access_token: str
     token_type: str = "bearer"
+    role: str | None = None
 
 
 # Contents of JWT token
@@ -111,3 +114,15 @@ class TokenPayload(SQLModel):
 class NewPassword(SQLModel):
     token: str
     new_password: str = Field(min_length=8, max_length=128)
+
+
+class UserDeviceDB(SQLModel, table=True):
+    """User device tokens for push notifications."""
+    __tablename__ = "user_devices"
+    
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    user_id: uuid.UUID = Field(foreign_key="user.id", index=True)
+    fcm_token: str = Field(index=True)
+    platform: str | None = None  # web, ios, android
+    last_updated_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
+

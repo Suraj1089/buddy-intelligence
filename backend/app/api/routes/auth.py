@@ -2,21 +2,21 @@
 Authentication routes - register, login, logout, token refresh.
 Replaces Supabase Auth with FastAPI-native authentication.
 """
+import uuid
 from datetime import timedelta
 from typing import Any
-import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
 
+from app import crud
+from app.booking_models import ProfileDB
+from app.core import security
 from app.core.config import settings
 from app.core.db import get_session
-from app.core import security
 from app.models import User, UserCreate
-from app.booking_models import ProfileDB
-from app import crud
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -75,26 +75,26 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     try:
         payload = security.decode_token(token)
         if payload is None:
             raise credentials_exception
-        
+
         user_id = payload.get("sub")
         if user_id is None:
             raise credentials_exception
     except Exception:
         raise credentials_exception
-    
+
     user = session.exec(select(User).where(User.id == uuid.UUID(user_id))).first()
-    
+
     if user is None:
         raise credentials_exception
-    
+
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
-    
+
     return user
 
 
@@ -132,7 +132,7 @@ def register(
             status_code=400,
             detail="A user with this email already exists."
         )
-    
+
     # Create user
     user_create = UserCreate(
         email=request.email,
@@ -140,7 +140,7 @@ def register(
         full_name=request.full_name,
     )
     user = crud.create_user(session=session, user_create=user_create)
-    
+
     # Create profile
     profile = ProfileDB(
         id=uuid.uuid4(),
@@ -150,13 +150,13 @@ def register(
     )
     session.add(profile)
     session.commit()
-    
+
     # Generate token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(
         user.id, expires_delta=access_token_expires
     )
-    
+
     return TokenResponse(
         access_token=access_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
@@ -183,27 +183,27 @@ def login(
         email=form_data.username,
         password=form_data.password
     )
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
-    
+
     # Get profile and provider status
     profile = get_profile(session, user.id)
     provider_status = is_provider(session, user.id)
-    
+
     # Generate token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(
         user.id, expires_delta=access_token_expires
     )
-    
+
     return TokenResponse(
         access_token=access_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
@@ -229,26 +229,26 @@ def login_json(
         email=request.email,
         password=request.password
     )
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
         )
-    
+
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
-    
+
     # Get profile and provider status
     profile = get_profile(session, user.id)
     provider_status = is_provider(session, user.id)
-    
+
     # Generate token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(
         user.id, expires_delta=access_token_expires
     )
-    
+
     return TokenResponse(
         access_token=access_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
@@ -271,7 +271,7 @@ def get_me(
     """
     profile = get_profile(session, current_user.id)
     provider_status = is_provider(session, current_user.id)
-    
+
     return UserResponse(
         id=str(current_user.id),
         email=current_user.email,
@@ -303,13 +303,13 @@ def refresh_token(
     """
     profile = get_profile(session, current_user.id)
     provider_status = is_provider(session, current_user.id)
-    
+
     # Generate new token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(
         current_user.id, expires_delta=access_token_expires
     )
-    
+
     return TokenResponse(
         access_token=access_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,

@@ -150,6 +150,27 @@ def register_user(session: SessionDep, user_in: UserRegister) -> Any:
         )
     user_create = UserCreate.model_validate(user_in)
     user = crud.create_user(session=session, user_create=user_create)
+
+    # Create role-specific profile
+    if user_in.role == "provider":
+        from app.booking_models import ProviderDB
+        provider = ProviderDB(
+            user_id=user.id,
+            business_name=user_in.full_name or "New Provider",
+            email=user_in.email,
+            is_available=True
+        )
+        session.add(provider)
+    else:
+        # Default to user profile
+        from app.booking_models import ProfileDB
+        profile = ProfileDB(
+            user_id=user.id,
+            full_name=user_in.full_name
+        )
+        session.add(profile)
+
+    session.commit()
     return user
 
 

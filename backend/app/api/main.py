@@ -1,7 +1,18 @@
 from fastapi import APIRouter
 
-from app.api.routes import items, login, private, users, utils
-from app.api.routes import services, bookings, providers, assignments, auth
+from app.api.routes import (
+    assignments,
+    auth,
+    bookings,
+    items,
+    login,
+    notifications,
+    private,
+    providers,
+    services,
+    users,
+    utils,
+)
 from app.core.config import settings
 
 api_router = APIRouter()
@@ -15,6 +26,7 @@ api_router.include_router(services.router)
 api_router.include_router(bookings.router)
 api_router.include_router(providers.router)
 api_router.include_router(assignments.router)
+api_router.include_router(notifications.router)
 
 # Auth routes (FastAPI-native, replaces Supabase Auth)
 api_router.include_router(auth.router)

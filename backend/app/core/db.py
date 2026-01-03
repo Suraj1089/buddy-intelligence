@@ -31,13 +31,13 @@ def init_db(session: Session) -> None:
             is_superuser=True,
         )
         user = crud.create_user(session=session, user_create=user_in)
-    
+
     seed_services(session)
 
 
 def seed_services(session: Session) -> None:
     from app.booking_models import ServiceCategoryDB, ServiceDB
-    
+
     # Check if we already have data
     if session.exec(select(ServiceCategoryDB)).first():
         return
@@ -73,13 +73,13 @@ def seed_services(session: Session) -> None:
             {"name": "Smart Home Installation", "base_price": 100, "duration_minutes": 90}
         ]}
     ]
-    
+
     for cat_data in categories:
         cat = ServiceCategoryDB(name=cat_data["name"], icon=cat_data["icon"])
         session.add(cat)
         session.commit()
         session.refresh(cat)
-        
+
         for serv_data in cat_data["services"]:
             service = ServiceDB(
                 name=serv_data["name"],

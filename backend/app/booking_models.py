@@ -3,13 +3,12 @@ SQLModel and Pydantic models for the booking system.
 These models map to the existing Supabase database tables.
 """
 import uuid
-from datetime import datetime, date, time
+from datetime import date, datetime
 from enum import Enum
-from typing import Optional, List
 
-from pydantic import BaseModel, Field
-from sqlmodel import SQLModel, Field as SQLField, Relationship
-
+from pydantic import BaseModel
+from sqlmodel import Field as SQLField
+from sqlmodel import SQLModel
 
 # ============== ENUMS ==============
 
@@ -36,45 +35,45 @@ class AssignmentStatus(str, Enum):
 class ServiceCategoryDB(SQLModel, table=True):
     """Service category database model."""
     __tablename__ = "service_categories"
-    
+
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
     name: str = SQLField(max_length=255)
-    description: Optional[str] = None
-    icon: Optional[str] = None
+    description: str | None = None
+    icon: str | None = None
     created_at: datetime = SQLField(default_factory=datetime.utcnow)
 
 
 class ServiceDB(SQLModel, table=True):
     """Service database model."""
     __tablename__ = "services"
-    
+
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
     name: str = SQLField(max_length=255)
-    description: Optional[str] = None
+    description: str | None = None
     base_price: float = SQLField(default=0)
-    duration_minutes: Optional[int] = None
-    category_id: Optional[uuid.UUID] = SQLField(foreign_key="service_categories.id")
+    duration_minutes: int | None = None
+    category_id: uuid.UUID | None = SQLField(foreign_key="service_categories.id")
     created_at: datetime = SQLField(default_factory=datetime.utcnow)
 
 
 class ProviderDB(SQLModel, table=True):
     """Provider database model."""
     __tablename__ = "providers"
-    
+
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = SQLField(unique=True)
     business_name: str = SQLField(max_length=255)
-    description: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    city: Optional[str] = None
-    rating: Optional[float] = None
-    experience_years: Optional[int] = None
+    description: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    city: str | None = None
+    rating: float | None = None
+    experience_years: int | None = None
     is_available: bool = SQLField(default=True)
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    avatar_url: Optional[str] = None
+    latitude: float | None = None
+    longitude: float | None = None
+    avatar_url: str | None = None
     created_at: datetime = SQLField(default_factory=datetime.utcnow)
     updated_at: datetime = SQLField(default_factory=datetime.utcnow)
 
@@ -82,12 +81,12 @@ class ProviderDB(SQLModel, table=True):
 class ProfileDB(SQLModel, table=True):
     """User profile database model."""
     __tablename__ = "profiles"
-    
+
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = SQLField(unique=True)
-    full_name: Optional[str] = None
-    phone: Optional[str] = None
-    avatar_url: Optional[str] = None
+    full_name: str | None = None
+    phone: str | None = None
+    avatar_url: str | None = None
     created_at: datetime = SQLField(default_factory=datetime.utcnow)
     updated_at: datetime = SQLField(default_factory=datetime.utcnow)
 
@@ -95,23 +94,23 @@ class ProfileDB(SQLModel, table=True):
 class BookingDB(SQLModel, table=True):
     """Booking database model."""
     __tablename__ = "bookings"
-    
+
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
     booking_number: str = SQLField(max_length=50)
     user_id: uuid.UUID
-    service_id: Optional[uuid.UUID] = SQLField(foreign_key="services.id")
-    provider_id: Optional[uuid.UUID] = SQLField(foreign_key="providers.id")
+    service_id: uuid.UUID | None = SQLField(foreign_key="services.id")
+    provider_id: uuid.UUID | None = SQLField(foreign_key="providers.id")
     service_date: date  # Stored as date in DB
     service_time: str   # Keep as string for now if it's VARCHAR in DB
     location: str
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    special_instructions: Optional[str] = None
-    status: Optional[str] = SQLField(default="pending")
-    estimated_price: Optional[float] = None
-    final_price: Optional[float] = None
-    provider_distance: Optional[str] = None
-    estimated_arrival: Optional[str] = None
+    latitude: float | None = None
+    longitude: float | None = None
+    special_instructions: str | None = None
+    status: str | None = SQLField(default="pending")
+    estimated_price: float | None = None
+    final_price: float | None = None
+    provider_distance: str | None = None
+    estimated_arrival: str | None = None
     created_at: datetime = SQLField(default_factory=datetime.utcnow)
     updated_at: datetime = SQLField(default_factory=datetime.utcnow)
 
@@ -119,26 +118,26 @@ class BookingDB(SQLModel, table=True):
 class AssignmentQueueDB(SQLModel, table=True):
     """Assignment queue database model."""
     __tablename__ = "assignment_queue"
-    
+
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
     booking_id: uuid.UUID = SQLField(foreign_key="bookings.id")
     provider_id: uuid.UUID = SQLField(foreign_key="providers.id")
     status: str = SQLField(default="pending")
-    score: Optional[float] = None
-    notified_at: Optional[datetime] = None
-    responded_at: Optional[datetime] = None
-    expires_at: Optional[datetime] = None
+    score: float | None = None
+    notified_at: datetime | None = None
+    responded_at: datetime | None = None
+    expires_at: datetime | None = None
     created_at: datetime = SQLField(default_factory=datetime.utcnow)
 
 
 class ProviderServicesDB(SQLModel, table=True):
     """Provider-Service relationship."""
     __tablename__ = "provider_services"
-    
+
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
-    provider_id: Optional[uuid.UUID] = SQLField(foreign_key="providers.id")
-    service_id: Optional[uuid.UUID] = SQLField(foreign_key="services.id")
-    custom_price: Optional[float] = None
+    provider_id: uuid.UUID | None = SQLField(foreign_key="providers.id")
+    service_id: uuid.UUID | None = SQLField(foreign_key="services.id")
+    custom_price: float | None = None
     created_at: datetime = SQLField(default_factory=datetime.utcnow)
 
 
@@ -148,8 +147,8 @@ class ProviderServicesDB(SQLModel, table=True):
 class ServiceCategoryBase(BaseModel):
     """Base service category schema."""
     name: str
-    description: Optional[str] = None
-    icon: Optional[str] = None
+    description: str | None = None
+    icon: str | None = None
 
 
 class ServiceCategoryCreate(ServiceCategoryBase):
@@ -160,14 +159,14 @@ class ServiceCategoryCreate(ServiceCategoryBase):
 class ServiceCategoryPublic(ServiceCategoryBase):
     """Schema for public service category response."""
     id: uuid.UUID
-    
+
     class Config:
         from_attributes = True
 
 
 class ServiceCategoriesPublic(BaseModel):
     """Schema for list of service categories."""
-    data: List[ServiceCategoryPublic]
+    data: list[ServiceCategoryPublic]
     count: int
 
 
@@ -175,10 +174,10 @@ class ServiceCategoriesPublic(BaseModel):
 class ServiceBase(BaseModel):
     """Base service schema."""
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     base_price: float = 0
-    duration_minutes: Optional[int] = None
-    category_id: Optional[uuid.UUID] = None
+    duration_minutes: int | None = None
+    category_id: uuid.UUID | None = None
 
 
 class ServiceCreate(ServiceBase):
@@ -189,14 +188,14 @@ class ServiceCreate(ServiceBase):
 class ServicePublic(ServiceBase):
     """Schema for public service response."""
     id: uuid.UUID
-    
+
     class Config:
         from_attributes = True
 
 
 class ServicesPublic(BaseModel):
     """Schema for list of services."""
-    data: List[ServicePublic]
+    data: list[ServicePublic]
     count: int
 
 
@@ -204,13 +203,13 @@ class ServicesPublic(BaseModel):
 class ProviderBase(BaseModel):
     """Base provider schema."""
     business_name: str
-    description: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    city: Optional[str] = None
-    rating: Optional[float] = None
-    experience_years: Optional[int] = None
+    description: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    city: str | None = None
+    rating: float | None = None
+    experience_years: int | None = None
     is_available: bool = True
 
 
@@ -221,44 +220,44 @@ class ProviderCreate(ProviderBase):
 
 class ProviderUpdate(BaseModel):
     """Schema for updating a provider."""
-    business_name: Optional[str] = None
-    description: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    city: Optional[str] = None
-    is_available: Optional[bool] = None
+    business_name: str | None = None
+    description: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    city: str | None = None
+    is_available: bool | None = None
 
 
 class ProviderPublic(ProviderBase):
     """Schema for public provider response."""
     id: uuid.UUID
     user_id: uuid.UUID
-    avatar_url: Optional[str] = None
-    
+    avatar_url: str | None = None
+
     class Config:
         from_attributes = True
 
 
 class ProviderServiceUpdate(BaseModel):
     """Schema for updating a provider service."""
-    custom_price: Optional[float] = None
+    custom_price: float | None = None
 
 
 class ProviderServicePublic(BaseModel):
     """Schema for public provider service response."""
     id: uuid.UUID
     service_id: uuid.UUID
-    custom_price: Optional[float] = None
-    service: Optional[ServicePublic] = None
-    
+    custom_price: float | None = None
+    service: ServicePublic | None = None
+
     class Config:
         from_attributes = True
 
 
 class ProviderServicesListPublic(BaseModel):
     """Schema for list of provider services."""
-    data: List[ProviderServicePublic]
+    data: list[ProviderServicePublic]
     count: int
 
 
@@ -269,18 +268,18 @@ class BookingBase(BaseModel):
     service_date: date
     service_time: str
     location: str
-    special_instructions: Optional[str] = None
+    special_instructions: str | None = None
 
 
 class BookingCreate(BookingBase):
     """Schema for creating a booking."""
-    estimated_price: Optional[float] = None
+    estimated_price: float | None = None
 
 
 class BookingUpdate(BaseModel):
     """Schema for updating a booking."""
-    status: Optional[BookingStatus] = None
-    final_price: Optional[float] = None
+    status: BookingStatus | None = None
+    final_price: float | None = None
 
 
 class BookingPublic(BaseModel):
@@ -288,41 +287,41 @@ class BookingPublic(BaseModel):
     id: uuid.UUID
     booking_number: str
     user_id: uuid.UUID
-    service_id: Optional[uuid.UUID] = None
-    provider_id: Optional[uuid.UUID] = None
+    service_id: uuid.UUID | None = None
+    provider_id: uuid.UUID | None = None
     service_date: date
     service_time: str
     location: str
-    special_instructions: Optional[str] = None
-    status: Optional[str] = None
-    estimated_price: Optional[float] = None
-    final_price: Optional[float] = None
-    provider_distance: Optional[str] = None
-    estimated_arrival: Optional[str] = None
+    special_instructions: str | None = None
+    status: str | None = None
+    estimated_price: float | None = None
+    final_price: float | None = None
+    provider_distance: str | None = None
+    estimated_arrival: str | None = None
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 
 class ProfilePublic(BaseModel):
     """Schema for public profile response."""
-    full_name: Optional[str] = None
-    phone: Optional[str] = None
-    avatar_url: Optional[str] = None
+    full_name: str | None = None
+    phone: str | None = None
+    avatar_url: str | None = None
 
 
 class BookingWithDetails(BookingPublic):
     """Booking with related service and provider details."""
-    service: Optional[ServicePublic] = None
-    provider: Optional[ProviderPublic] = None
-    user_profile: Optional[ProfilePublic] = None
+    service: ServicePublic | None = None
+    provider: ProviderPublic | None = None
+    user_profile: ProfilePublic | None = None
 
 
 class BookingsPublic(BaseModel):
     """Schema for list of bookings."""
-    data: List[BookingWithDetails]
+    data: list[BookingWithDetails]
     count: int
 
 
@@ -333,31 +332,31 @@ class AssignmentPublic(BaseModel):
     booking_id: uuid.UUID
     provider_id: uuid.UUID
     status: str
-    score: Optional[float] = None
-    notified_at: Optional[datetime] = None
-    expires_at: Optional[datetime] = None
-    
+    score: float | None = None
+    notified_at: datetime | None = None
+    expires_at: datetime | None = None
+
     class Config:
         from_attributes = True
 
 
 class AssignmentWithBooking(AssignmentPublic):
     """Assignment with booking details."""
-    booking: Optional[BookingWithDetails] = None
+    booking: BookingWithDetails | None = None
 
 
 class AssignmentsPublic(BaseModel):
     """Schema for list of assignments."""
-    data: List[AssignmentWithBooking]
+    data: list[AssignmentWithBooking]
     count: int
 
 
 class AssignmentResponse(BaseModel):
     """Response for accept/decline assignment."""
     success: bool
-    message: Optional[str] = None
-    error: Optional[str] = None
-    booking_id: Optional[uuid.UUID] = None
+    message: str | None = None
+    error: str | None = None
+    booking_id: uuid.UUID | None = None
 
 
 # --- Generic Response ---
