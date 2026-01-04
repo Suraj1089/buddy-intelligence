@@ -56,6 +56,7 @@ class UserResponse(BaseModel):
     phone: str | None = None
     is_active: bool
     is_provider: bool = False
+    is_superuser: bool = False
 
 
 class MessageResponse(BaseModel):
@@ -165,6 +166,7 @@ def register(
             "email": user.email,
             "full_name": request.full_name,
             "is_provider": False,
+            "is_superuser": user.is_superuser,
         }
     )
 
@@ -212,6 +214,7 @@ def login(
             "email": user.email,
             "full_name": profile.full_name if profile else None,
             "is_provider": provider_status,
+            "is_superuser": user.is_superuser,
         }
     )
 
@@ -257,6 +260,7 @@ def login_json(
             "email": user.email,
             "full_name": profile.full_name if profile else None,
             "is_provider": provider_status,
+            "is_superuser": user.is_superuser,
         }
     )
 
@@ -279,6 +283,7 @@ def get_me(
         phone=profile.phone if profile else None,
         is_active=current_user.is_active,
         is_provider=provider_status,
+        is_superuser=current_user.is_superuser,
     )
 
 
@@ -318,5 +323,6 @@ def refresh_token(
             "email": current_user.email,
             "full_name": profile.full_name if profile else None,
             "is_provider": provider_status,
+            "is_superuser": current_user.is_superuser,
         }
     )

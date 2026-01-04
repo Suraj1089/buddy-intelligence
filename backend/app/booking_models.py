@@ -73,6 +73,7 @@ class ProviderDB(SQLModel, table=True):
     is_available: bool = SQLField(default=True)
     latitude: float | None = None
     longitude: float | None = None
+    pincode: str | None = None
     avatar_url: str | None = None
     created_at: datetime = SQLField(default_factory=datetime.utcnow)
     updated_at: datetime = SQLField(default_factory=datetime.utcnow)
@@ -105,6 +106,7 @@ class BookingDB(SQLModel, table=True):
     location: str
     latitude: float | None = None
     longitude: float | None = None
+    pincode: str | None = None
     special_instructions: str | None = None
     status: str | None = SQLField(default="pending")
     estimated_price: float | None = None
@@ -187,6 +189,15 @@ class ServiceCreate(ServiceBase):
     pass
 
 
+class ServiceUpdate(BaseModel):
+    """Schema for updating a service."""
+    name: str | None = None
+    description: str | None = None
+    base_price: float | None = None
+    duration_minutes: int | None = None
+    category_id: uuid.UUID | None = None
+
+
 class ServicePublic(ServiceBase):
     """Schema for public service response."""
     id: uuid.UUID
@@ -229,6 +240,9 @@ class ProviderUpdate(BaseModel):
     address: str | None = None
     city: str | None = None
     is_available: bool | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    pincode: str | None = None
 
 
 class ProviderPublic(ProviderBase):
@@ -236,9 +250,18 @@ class ProviderPublic(ProviderBase):
     id: uuid.UUID
     user_id: uuid.UUID
     avatar_url: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    pincode: str | None = None
 
     class Config:
         from_attributes = True
+
+
+class ProvidersPublic(BaseModel):
+    """Schema for list of providers."""
+    data: list[ProviderPublic]
+    count: int
 
 
 class ProviderServiceUpdate(BaseModel):
@@ -276,12 +299,26 @@ class BookingBase(BaseModel):
 class BookingCreate(BookingBase):
     """Schema for creating a booking."""
     estimated_price: float | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    pincode: str | None = None
+
 
 
 class BookingUpdate(BaseModel):
     """Schema for updating a booking."""
     status: BookingStatus | None = None
     final_price: float | None = None
+
+
+class BookingAdminUpdate(BaseModel):
+    """Schema for admin updating a booking (all fields)."""
+    status: BookingStatus | None = None
+    final_price: float | None = None
+    service_date: date | None = None
+    service_time: str | None = None
+    provider_id: uuid.UUID | None = None
+    location: str | None = None
 
 
 class BookingRating(BaseModel):
@@ -328,12 +365,26 @@ class BookingWithDetails(BookingPublic):
     service: ServicePublic | None = None
     provider: ProviderPublic | None = None
     user_profile: ProfilePublic | None = None
+    user_email: str | None = None
 
 
 class BookingsPublic(BaseModel):
     """Schema for list of bookings."""
     data: list[BookingWithDetails]
     count: int
+
+
+class StatsPublic(BaseModel):
+    """Schema for dashboard statistics."""
+    total_users: int
+    active_providers: int
+    pending_requests: int
+    total_revenue: float
+    total_services: int
+    active_services: int
+    ongoing_bookings: int
+    completed_bookings: int
+
 
 
 # --- Assignment Schemas ---

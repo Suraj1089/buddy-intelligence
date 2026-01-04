@@ -35,4 +35,9 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.assignment_tasks.process_unassigned_bookings",
         "schedule": 60.0,  # Every minute
     },
+    "notify-awaiting-bookings": {
+        "task": "app.tasks.assignment_tasks.notify_awaiting_bookings",
+        "schedule": 60.0,  # Every minute
+    },
 }
+

@@ -8,8 +8,11 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import desc, select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, get_current_active_superuser
+from fastapi import APIRouter, Depends, HTTPException, Query
 from app.booking_models import (
+    AssignmentQueueDB,
+    BookingAdminUpdate,
     BookingCreate,
     BookingDB,
     BookingRating,
@@ -140,7 +143,11 @@ def list_bookings(
     """
     user_id = current_user.id
 
-    statement = select(BookingDB).where(BookingDB.user_id == user_id).order_by(desc(BookingDB.created_at))
+    statement = select(BookingDB).order_by(desc(BookingDB.created_at))
+
+    # Filter by user unless superuser
+    if not current_user.is_superuser:
+        statement = statement.where(BookingDB.user_id == user_id)
 
     if status:
         statement = statement.where(BookingDB.status == status)
@@ -179,8 +186,21 @@ def get_booking(
     if not is_owner:
         statement = select(ProviderDB).where(ProviderDB.user_id == user_id)
         provider = session.exec(statement).first()
-        if provider and booking.provider_id == provider.id:
-            is_provider = True
+        if provider:
+            # Check if provider is directly assigned to booking
+            if booking.provider_id == provider.id:
+                is_provider = True
+            else:
+                # Also check if provider has a pending assignment for this booking
+                assignment = session.exec(
+                    select(AssignmentQueueDB).where(
+                        AssignmentQueueDB.booking_id == booking.id,
+                        AssignmentQueueDB.provider_id == provider.id,
+                        AssignmentQueueDB.status.in_(["pending", "accepted"])
+                    )
+                ).first()
+                if assignment:
+                    is_provider = True
 
     if not is_owner and not is_provider:
         raise HTTPException(status_code=403, detail="Not authorized to view this booking")
@@ -207,12 +227,26 @@ def update_booking_status(
     # Check authorization - user must own the booking or be the assigned provider
     is_owner = booking.user_id == user_id
     is_provider = False
+    provider = None
 
     if not is_owner:
         statement = select(ProviderDB).where(ProviderDB.user_id == user_id)
         provider = session.exec(statement).first()
-        if provider and booking.provider_id == provider.id:
-            is_provider = True
+        if provider:
+            # Check if provider is directly assigned to booking
+            if booking.provider_id == provider.id:
+                is_provider = True
+            else:
+                # Also check if provider has a pending assignment for this booking
+                assignment = session.exec(
+                    select(AssignmentQueueDB).where(
+                        AssignmentQueueDB.booking_id == booking.id,
+                        AssignmentQueueDB.provider_id == provider.id,
+                        AssignmentQueueDB.status.in_(["pending", "accepted"])
+                    )
+                ).first()
+                if assignment:
+                    is_provider = True
 
     if not is_owner and not is_provider:
         raise HTTPException(status_code=403, detail="Not authorized to update this booking")
@@ -221,7 +255,48 @@ def update_booking_status(
     booking.updated_at = datetime.utcnow()
 
     if status_update.status:
-        booking.status = status_update.status.value
+        new_status = status_update.status.value
+        
+        # If provider is accepting (confirmed), assign them to the booking
+        if new_status == "confirmed" and is_provider and provider:
+            booking.provider_id = provider.id
+            booking.status = new_status
+            
+            # Update their assignment to accepted and expire others
+            session.exec(
+                select(AssignmentQueueDB).where(
+                    AssignmentQueueDB.booking_id == booking.id,
+                    AssignmentQueueDB.provider_id == provider.id
+                )
+            )
+            assignments = session.exec(
+                select(AssignmentQueueDB).where(
+                    AssignmentQueueDB.booking_id == booking.id
+                )
+            ).all()
+            
+            for assignment in assignments:
+                if assignment.provider_id == provider.id:
+                    assignment.status = "accepted"
+                else:
+                    assignment.status = "expired"
+                session.add(assignment)
+                    
+        # If provider is declining (cancelled), mark their assignment as rejected
+        elif new_status == "cancelled" and is_provider and provider:
+            assignment = session.exec(
+                select(AssignmentQueueDB).where(
+                    AssignmentQueueDB.booking_id == booking.id,
+                    AssignmentQueueDB.provider_id == provider.id
+                )
+            ).first()
+            if assignment:
+                assignment.status = "rejected"
+                session.add(assignment)
+            # Don't change booking status - let the system find another provider
+        else:
+            booking.status = new_status
+            
     if status_update.final_price is not None:
         booking.final_price = status_update.final_price
 
@@ -309,12 +384,40 @@ def rate_booking(
     return MessageResponse(message="Rating submitted successfully")
 
 
+
+@router.patch("/{booking_id}/admin", dependencies=[Depends(get_current_active_superuser)], response_model=BookingWithDetails)
+def update_booking_admin(
+    booking_id: uuid.UUID,
+    booking_in: BookingAdminUpdate,
+    session: SessionDep,
+) -> Any:
+    """
+    Update a booking (Admin only).
+    Allows updating all fields including service, provider, date, time, etc.
+    """
+    booking = session.get(BookingDB, booking_id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    update_data = booking_in.model_dump(exclude_unset=True)
+    booking.sqlmodel_update(update_data)
+    
+    session.add(booking)
+    session.commit()
+    session.refresh(booking)
+    
+    return _enrich_booking(session, booking)
+
+
+
 def _enrich_booking(session: SessionDep, booking: BookingDB) -> BookingWithDetails:
     """
-    Enrich a booking with service and provider details.
+    Enrich a booking with service, provider, and user details.
     """
     service = None
     provider = None
+    user_profile = None
+    user_email = None
 
     # Fetch service details
     if booking.service_id:
@@ -327,6 +430,23 @@ def _enrich_booking(session: SessionDep, booking: BookingDB) -> BookingWithDetai
         provider_db = session.get(ProviderDB, booking.provider_id)
         if provider_db:
             provider = ProviderPublic.model_validate(provider_db)
+            
+    # Fetch user profile and email
+    if booking.user_id:
+        # Get User object for email
+        from app.models import User
+        user = session.get(User, booking.user_id)
+        if user:
+            user_email = user.email
+            
+        # Get Profile object for additional details
+        from app.booking_models import ProfileDB, ProfilePublic
+        profile_db = session.exec(select(ProfileDB).where(ProfileDB.user_id == booking.user_id)).first()
+        if profile_db:
+            user_profile = ProfilePublic.model_validate(profile_db)
+        elif user:
+             # Fallback to creating a profile object from User data if ProfileDB entry doesn't exist
+             user_profile = ProfilePublic(full_name=user.full_name)
 
     return BookingWithDetails(
         id=booking.id,
@@ -349,4 +469,7 @@ def _enrich_booking(session: SessionDep, booking: BookingDB) -> BookingWithDetai
         updated_at=booking.updated_at,
         service=service,
         provider=provider,
+        user_profile=user_profile,
+        user_email=user_email,
     )
+

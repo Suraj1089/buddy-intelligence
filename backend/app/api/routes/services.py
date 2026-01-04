@@ -4,18 +4,21 @@ API routes for service categories and services.
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import select
 
-from app.api.deps import SessionDep
+from app.api.deps import CurrentUser, SessionDep, get_current_active_superuser
 from app.booking_models import (
     ServiceCategoriesPublic,
     ServiceCategoryDB,
     ServiceCategoryPublic,
+    ServiceCreate,
     ServiceDB,
     ServicePublic,
     ServicesPublic,
+    ServiceUpdate,
 )
+from app.models import Message
 
 router = APIRouter(prefix="/services", tags=["services"])
 
@@ -77,3 +80,51 @@ def get_service(service_id: uuid.UUID, session: SessionDep) -> Any:
         raise HTTPException(status_code=404, detail="Service not found")
 
     return ServicePublic.model_validate(service)
+
+
+@router.post("/", dependencies=[Depends(get_current_active_superuser)], response_model=ServicePublic)
+def create_service(*, session: SessionDep, service_in: ServiceCreate) -> Any:
+    """
+    Create a new service (Admin only).
+    """
+    service = ServiceDB.model_validate(service_in)
+    session.add(service)
+    session.commit()
+    session.refresh(service)
+    return ServicePublic.model_validate(service)
+
+
+@router.patch("/{service_id}", dependencies=[Depends(get_current_active_superuser)], response_model=ServicePublic)
+def update_service(
+    *,
+    session: SessionDep,
+    service_id: uuid.UUID,
+    service_in: ServiceUpdate
+) -> Any:
+    """
+    Update a service (Admin only).
+    """
+    service = session.get(ServiceDB, service_id)
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+    
+    update_data = service_in.model_dump(exclude_unset=True)
+    service.sqlmodel_update(update_data)
+    session.add(service)
+    session.commit()
+    session.refresh(service)
+    return ServicePublic.model_validate(service)
+
+
+@router.delete("/{service_id}", dependencies=[Depends(get_current_active_superuser)], response_model=Message)
+def delete_service(*, session: SessionDep, service_id: uuid.UUID) -> Any:
+    """
+    Delete a service (Admin only).
+    """
+    service = session.get(ServiceDB, service_id)
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+    
+    session.delete(service)
+    session.commit()
+    return Message(message="Service deleted successfully")

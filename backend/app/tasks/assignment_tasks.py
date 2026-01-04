@@ -3,7 +3,7 @@ Assignment background tasks for auto-assigning providers to bookings.
 """
 import uuid
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Dict
 
 from celery import shared_task
 from sqlmodel import Session, select
@@ -88,6 +88,18 @@ def process_new_booking(self, booking_id: str) -> dict[str, Any]:
 
             # Trigger notifications (could be separate task)
             notify_providers.delay(booking_id)
+            
+            logger.info({
+                "event_type": "assignment_lifecycle",
+                "event_name": "assignments_created",
+                "booking_id": str(booking_id),
+                "provider_count": min(len(providers), 3),
+                "top_providers": [{
+                    "provider_id": str(p["provider_id"]),
+                    "score": p["score"],
+                    "distance": p.get("distance")
+                } for p in providers[:3]]
+            })
 
             return {
                 "success": True,
@@ -112,29 +124,54 @@ def notify_providers(booking_id: str) -> Dict[str, Any]:
     Send notifications to providers about a new booking assignment.
     """
     from app.core.firebase_utils import send_push_notification
-    from app.booking_models import AssignmentQueueDB, ProviderDB, BookingDB
+    from app.booking_models import AssignmentQueueDB, ProviderDB, BookingDB, ServiceDB
     from app.models import UserDeviceDB
+    
+    logger.info({
+        "event_type": "notification",
+        "event_name": "notify_providers_start",
+        "booking_id": str(booking_id)
+    })
     
     with Session(engine) as session:
         # Get booking details
-        booking = session.get(BookingDB, booking_id)
+        booking = session.get(BookingDB, uuid.UUID(booking_id))
         if not booking:
+            logger.error({"event_type": "notification", "event_name": "booking_not_found", "booking_id": str(booking_id)})
             return {"success": False, "error": "Booking not found"}
+        
+        # Get service details for richer notification
+        service = session.get(ServiceDB, booking.service_id) if booking.service_id else None
+        service_name = service.name if service else "Service"
+        
+        # Extract location info (city/area from full address)
+        location_short = booking.location.split(",")[0] if booking.location else "Your area"
+        estimated_earnings = f"₹{int(booking.estimated_price or 0)}" if booking.estimated_price else ""
             
         # Get pending assignments
         assignments = session.exec(
             select(AssignmentQueueDB).where(
-                AssignmentQueueDB.booking_id == booking_id,
+                AssignmentQueueDB.booking_id == uuid.UUID(booking_id),
                 AssignmentQueueDB.status == "pending"
             )
         ).all()
         
+        logger.info({
+            "event_type": "notification",
+            "event_name": "assignments_found",
+            "booking_id": str(booking_id),
+            "assignment_count": len(assignments),
+            "assignment_ids": [str(a.id) for a in assignments]
+        })
+        
         sent_count = 0
+        failed_count = 0
         
         for assignment in assignments:
             # Get provider user ID
             provider = session.get(ProviderDB, assignment.provider_id)
             if not provider:
+                logger.warning({"event_type": "notification", "event_name": "provider_not_found", "provider_id": str(assignment.provider_id)})
                 continue
                 
             # Get device tokens for this provider's user
@@ -142,28 +179,124 @@ def notify_providers(booking_id: str) -> Dict[str, Any]:
                 select(UserDeviceDB).where(UserDeviceDB.user_id == provider.user_id)
             ).all()
             
+            logger.info({
+                "event_type": "notification",
+                "event_name": "provider_devices_found",
+                "provider_id": str(provider.id),
+                "provider_name": provider.business_name,
+                "user_id": str(provider.user_id),
+                "device_count": len(devices),
+                "device_ids": [str(d.id) for d in devices],
+                "has_fcm_tokens": len([d for d in devices if d.fcm_token]) > 0
+            })
+            
+            if not devices:
+                logger.warning({
+                    "event_type": "notification",
+                    "event_name": "no_devices_registered",
+                    "provider_id": str(provider.id),
+                    "provider_name": provider.business_name
+                })
+                continue
+            
+            # Build rich notification
+            title = f"🔔 New {service_name} Request!"
+            body_parts = [f"Location: {location_short}"]
+            if estimated_earnings:
+                body_parts.append(f"Earn: {estimated_earnings}")
+            body_parts.append("Tap to view details")
+            body = " • ".join(body_parts)
+            
             for device in devices:
-                logger.info(f"Sending push to provider {provider.business_name} (Device: {device.id})")
+                logger.info({
+                    "event_type": "notification",
+                    "event_name": "sending_push",
+                    "provider_name": provider.business_name,
+                    "device_id": str(device.id),
+                    "fcm_token_prefix": device.fcm_token[:20] if device.fcm_token else "NONE",
+                    "title": title,
+                    "body": body
+                })
                 success = send_push_notification(
                     token=device.fcm_token,
-                    title="New Service Request!",
-                    body=f"New booking available: {booking.booking_number}",
+                    title=title,
+                    body=body,
                     data={
                         "booking_id": str(booking_id),
                         "assignment_id": str(assignment.id),
-                        "type": "new_assignment"
+                        "type": "new_assignment",
+                        "service_name": service_name,
+                        "estimated_earnings": estimated_earnings,
                     }
                 )
                 if success:
                     sent_count += 1
+                    logger.info({"event_type": "notification", "event_name": "push_sent_success", "device_id": str(device.id)})
+                else:
+                    failed_count += 1
+                    logger.warning({"event_type": "notification", "event_name": "push_sent_failed", "device_id": str(device.id)})
                     
     logger.info({
         "event_type": "notification",
-        "event_name": "providers_notified",
+        "event_name": "providers_notified_complete",
         "booking_id": str(booking_id),
-        "push_sent_count": sent_count
+        "push_sent_count": sent_count,
+        "push_failed_count": failed_count
     })
-    return {"success": True, "sent_count": sent_count}
+    return {"success": True, "sent_count": sent_count, "failed_count": failed_count}
+
+
+@shared_task
+def notify_awaiting_bookings() -> Dict[str, Any]:
+    """
+    Periodic task to notify providers about pending assignments.
+    Runs every minute via Celery Beat.
+    """
+    from app.booking_models import AssignmentQueueDB, BookingDB
+    
+    logger.info({
+        "event_type": "task_execution",
+        "event_name": "notify_awaiting_bookings_start"
+    })
+    
+    notified_count = 0
+    
+    with Session(engine) as session:
+        # Find bookings that are awaiting provider with pending assignments
+        bookings = session.exec(
+            select(BookingDB).where(
+                BookingDB.status == "awaiting_provider",
+                BookingDB.provider_id.is_(None)
+            )
+        ).all()
+        
+        for booking in bookings:
+            # Check if there are pending assignments
+            pending_assignments = session.exec(
+                select(AssignmentQueueDB).where(
+                    AssignmentQueueDB.booking_id == booking.id,
+                    AssignmentQueueDB.status == "pending"
+                )
+            ).all()
+            
+            if pending_assignments:
+                # Trigger notification for this booking
+                notify_providers.delay(str(booking.id))
+                notified_count += 1
+                logger.info({
+                    "event_type": "task_execution",
+                    "event_name": "notify_awaiting_triggered",
+                    "booking_id": str(booking.id),
+                    "pending_assignments": len(pending_assignments)
+                })
+    
+    logger.info({
+        "event_type": "task_execution",
+        "event_name": "notify_awaiting_bookings_complete",
+        "notified_count": notified_count
+    })
+    
+    return {"success": True, "notified_count": notified_count}
 
 
 @shared_task
@@ -307,6 +440,16 @@ def find_matching_providers(session: Session, booking: BookingDB) -> list[dict[s
     Find and score providers for a booking.
     Returns list of {provider_id, score} sorted by score descending.
     """
+    logger.info({
+        "event_type": "provider_matching",
+        "event_name": "find_matching_providers_start",
+        "booking_id": str(booking.id),
+        "service_id": str(booking.service_id) if booking.service_id else None,
+        "booking_location": booking.location,
+        "booking_lat": booking.latitude,
+        "booking_lng": booking.longitude
+    })
+    
     # Get providers who offer this service
     provider_services = session.exec(
         select(ProviderServicesDB).where(
@@ -315,6 +458,13 @@ def find_matching_providers(session: Session, booking: BookingDB) -> list[dict[s
     ).all()
 
     service_provider_ids = {ps.provider_id for ps in provider_services}
+    
+    logger.info({
+        "event_type": "provider_matching",
+        "event_name": "service_providers_found",
+        "booking_id": str(booking.id),
+        "provider_ids_for_service": [str(pid) for pid in service_provider_ids]
+    })
 
     # Get active providers
     # If no providers offer this service, we will fallback to ALL active providers
@@ -324,9 +474,28 @@ def find_matching_providers(session: Session, booking: BookingDB) -> list[dict[s
         query = query.where(ProviderDB.id.in_(service_provider_ids))
 
     providers = session.exec(query).all()
+    
+    logger.info({
+        "event_type": "provider_matching",
+        "event_name": "available_providers_queried",
+        "booking_id": str(booking.id),
+        "available_providers_count": len(providers),
+        "provider_details": [{
+            "id": str(p.id),
+            "business_name": p.business_name,
+            "is_available": p.is_available,
+            "lat": p.latitude,
+            "lng": p.longitude
+        } for p in providers]
+    })
 
     # Fallback: If no providers found with service filter, assume flexibility and get ALL available
     if not providers and service_provider_ids:
+        logger.info({
+            "event_type": "provider_matching",
+            "event_name": "fallback_to_all_providers",
+            "booking_id": str(booking.id)
+        })
         query = select(ProviderDB).where(ProviderDB.is_available == True)
         providers = session.exec(query).all()
 
@@ -343,14 +512,8 @@ def find_matching_providers(session: Session, booking: BookingDB) -> list[dict[s
                 provider.latitude, provider.longitude
             )
 
-            # Filter matches too far away - DISABLED for now to ensure assignment
-            # if distance > MAX_DISTANCE_KM:
-            #     continue
-
         # If booking requires location matching but provider has no location, skip
         elif booking.latitude and (not provider.latitude or not provider.longitude):
-            # For now, allow providers without location (assume they cover the area)
-            # In production, we might want to be stricter or check service radius
             distance = 0.0
 
         score = calculate_provider_score(session, provider, booking, distance)
@@ -362,6 +525,18 @@ def find_matching_providers(session: Session, booking: BookingDB) -> list[dict[s
 
     # Sort by score descending
     scored_providers.sort(key=lambda x: x["score"], reverse=True)
+    
+    logger.info({
+        "event_type": "provider_matching",
+        "event_name": "find_matching_providers_complete",
+        "booking_id": str(booking.id),
+        "total_matched": len(scored_providers),
+        "top_3": [{
+            "provider_id": str(p["provider_id"]),
+            "score": p["score"],
+            "distance": p.get("distance")
+        } for p in scored_providers[:3]]
+    })
 
     return scored_providers
 
@@ -394,6 +569,11 @@ def calculate_provider_score(
     if distance is not None:
         # Closer is better. MAX bonus at 0km, 0 bonus at 20km.
         score += max(0, 20 - distance)
+
+    # Pincode matching bonus (+10 if same pincode)
+    if booking.pincode and provider.pincode:
+        if booking.pincode == provider.pincode:
+            score += 10.0
 
     # Workload penalty - fewer active bookings is better
     active_bookings = session.exec(

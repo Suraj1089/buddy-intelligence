@@ -20,6 +20,7 @@ from app.booking_models import (
     ProviderBase,
     ProviderDB,
     ProviderPublic,
+    ProvidersPublic,
     ProviderServicePublic,
     ProviderServicesDB,
     ProviderServicesListPublic,
@@ -371,6 +372,34 @@ def get_provider(
         raise HTTPException(status_code=404, detail="Provider not found")
 
     return ProviderPublic.model_validate(provider)
+
+
+@router.get("", response_model=ProvidersPublic)
+def read_providers(
+    session: SessionDep,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    business_name: str | None = Query(None, description="Filter by business name"),
+    is_available: bool | None = Query(None, description="Filter by availability"),
+) -> Any:
+    """
+    Retrieve providers.
+    """
+    statement = select(ProviderDB)
+    
+    if business_name:
+        statement = statement.where(ProviderDB.business_name.contains(business_name))
+    
+    if is_available is not None:
+        statement = statement.where(ProviderDB.is_available == is_available)
+        
+    # Count query
+    count = len(session.exec(statement).all())
+    
+    statement = statement.offset(skip).limit(limit)
+    providers = session.exec(statement).all()
+    
+    return ProvidersPublic(data=providers, count=count)
 
 
 def _enrich_provider_booking(session: SessionDep, booking: BookingDB) -> BookingWithDetails:
