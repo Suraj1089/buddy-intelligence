@@ -1,4 +1,3 @@
-
 from typing import Any
 import uuid
 import datetime
@@ -11,15 +10,17 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
+
 class DeviceTokenRequest(BaseModel):
     fcm_token: str
     platform: str = "web"
+
 
 @router.post("/device", response_model=Message)
 def register_device(
     request: DeviceTokenRequest,
     session: SessionDep,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     Register a device FCM token for push notifications.
@@ -27,25 +28,25 @@ def register_device(
     # Check if token already exists
     statement = select(UserDeviceDB).where(UserDeviceDB.fcm_token == request.fcm_token)
     existing_device = session.exec(statement).first()
-    
+
     if existing_device:
         # Update user association if changed
         if existing_device.user_id != current_user.id:
             existing_device.user_id = current_user.id
-            
+
         existing_device.last_updated_at = datetime.datetime.utcnow()
         session.add(existing_device)
         session.commit()
         return Message(message="Device token updated")
-        
+
     # Create new device record
     device = UserDeviceDB(
         user_id=current_user.id,
         fcm_token=request.fcm_token,
         platform=request.platform,
-        last_updated_at=datetime.datetime.utcnow()
+        last_updated_at=datetime.datetime.utcnow(),
     )
     session.add(device)
     session.commit()
-    
+
     return Message(message="Device registered successfully")

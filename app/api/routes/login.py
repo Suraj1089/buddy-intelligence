@@ -44,7 +44,9 @@ def login_access_token(
     from app.booking_models import ProviderDB
 
     # Check if provider
-    provider = session.exec(select(ProviderDB).where(ProviderDB.user_id == user.id)).first()
+    provider = session.exec(
+        select(ProviderDB).where(ProviderDB.user_id == user.id)
+    ).first()
     if provider:
         role = "provider"
     elif user.is_superuser:
@@ -54,7 +56,7 @@ def login_access_token(
         access_token=security.create_access_token(
             user.id, expires_delta=access_token_expires
         ),
-        role=role
+        role=role,
     )
 
 

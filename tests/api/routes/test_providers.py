@@ -7,6 +7,7 @@ Tests cover:
 - Get provider's bookings
 - Get public provider info
 """
+
 import pytest
 from fastapi.testclient import TestClient
 

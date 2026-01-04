@@ -7,6 +7,7 @@ Tests cover:
 - Get service by ID
 - Filter services by category
 """
+
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
@@ -71,8 +72,7 @@ class TestServices:
         if len(categories) > 0:
             category_id = categories[0]["id"]
             response = client.get(
-                f"{settings.API_V1_STR}/services",
-                params={"category_id": category_id}
+                f"{settings.API_V1_STR}/services", params={"category_id": category_id}
             )
             assert response.status_code == 200
             data = response.json()

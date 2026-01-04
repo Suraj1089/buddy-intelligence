@@ -1,7 +1,8 @@
 """
 SQLModel and Pydantic models for the booking system.
-These models map to the existing Supabase database tables.
+These models map to the existing database tables.
 """
+
 import uuid
 from datetime import date, datetime
 from enum import Enum
@@ -12,8 +13,10 @@ from sqlmodel import SQLModel
 
 # ============== ENUMS ==============
 
+
 class BookingStatus(str, Enum):
     """Booking status enum matching database."""
+
     AWAITING_PROVIDER = "awaiting_provider"
     PENDING = "pending"
     CONFIRMED = "confirmed"
@@ -24,6 +27,7 @@ class BookingStatus(str, Enum):
 
 class AssignmentStatus(str, Enum):
     """Assignment queue status enum."""
+
     PENDING = "pending"
     ACCEPTED = "accepted"
     DECLINED = "declined"
@@ -32,8 +36,10 @@ class AssignmentStatus(str, Enum):
 
 # ============== DATABASE MODELS (SQLModel) ==============
 
+
 class ServiceCategoryDB(SQLModel, table=True):
     """Service category database model."""
+
     __tablename__ = "service_categories"
 
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
@@ -45,6 +51,7 @@ class ServiceCategoryDB(SQLModel, table=True):
 
 class ServiceDB(SQLModel, table=True):
     """Service database model."""
+
     __tablename__ = "services"
 
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
@@ -58,6 +65,7 @@ class ServiceDB(SQLModel, table=True):
 
 class ProviderDB(SQLModel, table=True):
     """Provider database model."""
+
     __tablename__ = "providers"
 
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
@@ -81,6 +89,7 @@ class ProviderDB(SQLModel, table=True):
 
 class ProfileDB(SQLModel, table=True):
     """User profile database model."""
+
     __tablename__ = "profiles"
 
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
@@ -94,6 +103,7 @@ class ProfileDB(SQLModel, table=True):
 
 class BookingDB(SQLModel, table=True):
     """Booking database model."""
+
     __tablename__ = "bookings"
 
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
@@ -102,7 +112,7 @@ class BookingDB(SQLModel, table=True):
     service_id: uuid.UUID | None = SQLField(foreign_key="services.id")
     provider_id: uuid.UUID | None = SQLField(foreign_key="providers.id")
     service_date: date  # Stored as date in DB
-    service_time: str   # Keep as string for now if it's VARCHAR in DB
+    service_time: str  # Keep as string for now if it's VARCHAR in DB
     location: str
     latitude: float | None = None
     longitude: float | None = None
@@ -121,6 +131,7 @@ class BookingDB(SQLModel, table=True):
 
 class AssignmentQueueDB(SQLModel, table=True):
     """Assignment queue database model."""
+
     __tablename__ = "assignment_queue"
 
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
@@ -136,6 +147,7 @@ class AssignmentQueueDB(SQLModel, table=True):
 
 class ProviderServicesDB(SQLModel, table=True):
     """Provider-Service relationship."""
+
     __tablename__ = "provider_services"
 
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
@@ -147,9 +159,11 @@ class ProviderServicesDB(SQLModel, table=True):
 
 # ============== API SCHEMAS (Pydantic) ==============
 
+
 # --- Service Category Schemas ---
 class ServiceCategoryBase(BaseModel):
     """Base service category schema."""
+
     name: str
     description: str | None = None
     icon: str | None = None
@@ -157,11 +171,13 @@ class ServiceCategoryBase(BaseModel):
 
 class ServiceCategoryCreate(ServiceCategoryBase):
     """Schema for creating a service category."""
+
     pass
 
 
 class ServiceCategoryPublic(ServiceCategoryBase):
     """Schema for public service category response."""
+
     id: uuid.UUID
 
     class Config:
@@ -170,6 +186,7 @@ class ServiceCategoryPublic(ServiceCategoryBase):
 
 class ServiceCategoriesPublic(BaseModel):
     """Schema for list of service categories."""
+
     data: list[ServiceCategoryPublic]
     count: int
 
@@ -177,6 +194,7 @@ class ServiceCategoriesPublic(BaseModel):
 # --- Service Schemas ---
 class ServiceBase(BaseModel):
     """Base service schema."""
+
     name: str
     description: str | None = None
     base_price: float = 0
@@ -186,11 +204,13 @@ class ServiceBase(BaseModel):
 
 class ServiceCreate(ServiceBase):
     """Schema for creating a service."""
+
     pass
 
 
 class ServiceUpdate(BaseModel):
     """Schema for updating a service."""
+
     name: str | None = None
     description: str | None = None
     base_price: float | None = None
@@ -200,6 +220,7 @@ class ServiceUpdate(BaseModel):
 
 class ServicePublic(ServiceBase):
     """Schema for public service response."""
+
     id: uuid.UUID
 
     class Config:
@@ -208,6 +229,7 @@ class ServicePublic(ServiceBase):
 
 class ServicesPublic(BaseModel):
     """Schema for list of services."""
+
     data: list[ServicePublic]
     count: int
 
@@ -215,6 +237,7 @@ class ServicesPublic(BaseModel):
 # --- Provider Schemas ---
 class ProviderBase(BaseModel):
     """Base provider schema."""
+
     business_name: str
     description: str | None = None
     email: str | None = None
@@ -228,11 +251,13 @@ class ProviderBase(BaseModel):
 
 class ProviderCreate(ProviderBase):
     """Schema for creating a provider."""
+
     user_id: uuid.UUID
 
 
 class ProviderUpdate(BaseModel):
     """Schema for updating a provider."""
+
     business_name: str | None = None
     description: str | None = None
     email: str | None = None
@@ -247,6 +272,7 @@ class ProviderUpdate(BaseModel):
 
 class ProviderPublic(ProviderBase):
     """Schema for public provider response."""
+
     id: uuid.UUID
     user_id: uuid.UUID
     avatar_url: str | None = None
@@ -260,17 +286,20 @@ class ProviderPublic(ProviderBase):
 
 class ProvidersPublic(BaseModel):
     """Schema for list of providers."""
+
     data: list[ProviderPublic]
     count: int
 
 
 class ProviderServiceUpdate(BaseModel):
     """Schema for updating a provider service."""
+
     custom_price: float | None = None
 
 
 class ProviderServicePublic(BaseModel):
     """Schema for public provider service response."""
+
     id: uuid.UUID
     service_id: uuid.UUID
     custom_price: float | None = None
@@ -282,6 +311,7 @@ class ProviderServicePublic(BaseModel):
 
 class ProviderServicesListPublic(BaseModel):
     """Schema for list of provider services."""
+
     data: list[ProviderServicePublic]
     count: int
 
@@ -289,6 +319,7 @@ class ProviderServicesListPublic(BaseModel):
 # --- Booking Schemas ---
 class BookingBase(BaseModel):
     """Base booking schema."""
+
     service_id: uuid.UUID
     service_date: date
     service_time: str
@@ -298,21 +329,23 @@ class BookingBase(BaseModel):
 
 class BookingCreate(BookingBase):
     """Schema for creating a booking."""
+
     estimated_price: float | None = None
     latitude: float | None = None
     longitude: float | None = None
     pincode: str | None = None
 
 
-
 class BookingUpdate(BaseModel):
     """Schema for updating a booking."""
+
     status: BookingStatus | None = None
     final_price: float | None = None
 
 
 class BookingAdminUpdate(BaseModel):
     """Schema for admin updating a booking (all fields)."""
+
     status: BookingStatus | None = None
     final_price: float | None = None
     service_date: date | None = None
@@ -323,13 +356,14 @@ class BookingAdminUpdate(BaseModel):
 
 class BookingRating(BaseModel):
     """Schema for rating a booking."""
+
     rating: int  # 1-5
     comment: str | None = None
 
 
-
 class BookingPublic(BaseModel):
     """Schema for public booking response."""
+
     id: uuid.UUID
     booking_number: str
     user_id: uuid.UUID
@@ -355,13 +389,18 @@ class BookingPublic(BaseModel):
 
 class ProfilePublic(BaseModel):
     """Schema for public profile response."""
+
     full_name: str | None = None
     phone: str | None = None
     avatar_url: str | None = None
 
+    class Config:
+        from_attributes = True
+
 
 class BookingWithDetails(BookingPublic):
     """Booking with related service and provider details."""
+
     service: ServicePublic | None = None
     provider: ProviderPublic | None = None
     user_profile: ProfilePublic | None = None
@@ -370,12 +409,14 @@ class BookingWithDetails(BookingPublic):
 
 class BookingsPublic(BaseModel):
     """Schema for list of bookings."""
+
     data: list[BookingWithDetails]
     count: int
 
 
 class StatsPublic(BaseModel):
     """Schema for dashboard statistics."""
+
     total_users: int
     active_providers: int
     pending_requests: int
@@ -386,10 +427,10 @@ class StatsPublic(BaseModel):
     completed_bookings: int
 
 
-
 # --- Assignment Schemas ---
 class AssignmentPublic(BaseModel):
     """Schema for public assignment response."""
+
     id: uuid.UUID
     booking_id: uuid.UUID
     provider_id: uuid.UUID
@@ -404,17 +445,20 @@ class AssignmentPublic(BaseModel):
 
 class AssignmentWithBooking(AssignmentPublic):
     """Assignment with booking details."""
+
     booking: BookingWithDetails | None = None
 
 
 class AssignmentsPublic(BaseModel):
     """Schema for list of assignments."""
+
     data: list[AssignmentWithBooking]
     count: int
 
 
 class AssignmentResponse(BaseModel):
     """Response for accept/decline assignment."""
+
     success: bool
     message: str | None = None
     error: str | None = None
@@ -424,4 +468,5 @@ class AssignmentResponse(BaseModel):
 # --- Generic Response ---
 class MessageResponse(BaseModel):
     """Generic message response."""
+
     message: str

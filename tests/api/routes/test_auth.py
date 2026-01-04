@@ -8,6 +8,7 @@ Tests cover:
 - Token refresh
 - Logout
 """
+
 import pytest
 from fastapi.testclient import TestClient
 

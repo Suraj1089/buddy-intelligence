@@ -2,6 +2,7 @@
 """
 One-time script to migrate all secrets from .env and firebase-config.json to dev-config.yml
 """
+
 import os
 import json
 import yaml
@@ -19,8 +20,10 @@ if not MASTER_KEY:
 
 cipher = Fernet(MASTER_KEY.encode())
 
+
 def encrypt(value: str) -> str:
     return cipher.encrypt(value.encode()).decode()
+
 
 # Secrets to migrate from .env (sensitive values only)
 SECRETS_TO_MIGRATE = [
@@ -45,12 +48,7 @@ CONFIG_TO_MIGRATE = [
 ]
 
 # Build the new config
-new_config = {
-    "environment": "local",
-    "debug": True,
-    "config": {},
-    "secrets": {}
-}
+new_config = {"environment": "local", "debug": True, "config": {}, "secrets": {}}
 
 # Migrate non-secret config
 for key in CONFIG_TO_MIGRATE:
@@ -68,13 +66,13 @@ for key in SECRETS_TO_MIGRATE:
 # Encrypt firebase-config.json
 firebase_path = "firebase-config.json"
 if os.path.exists(firebase_path):
-    with open(firebase_path, 'r') as f:
+    with open(firebase_path, "r") as f:
         firebase_json = f.read()
     new_config["secrets"]["FIREBASE_CREDENTIALS_JSON"] = encrypt(firebase_json)
     print(f"🔒 Secret: FIREBASE_CREDENTIALS_JSON -> encrypted")
 
 # Write to dev-config.yml
-with open("dev-config.yml", 'w') as f:
+with open("dev-config.yml", "w") as f:
     yaml.dump(new_config, f, default_flow_style=False, sort_keys=False)
 
 print("\n✅ Migration complete! dev-config.yml updated.")

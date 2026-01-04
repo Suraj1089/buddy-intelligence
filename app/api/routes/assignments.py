@@ -1,6 +1,7 @@
 """
 API routes for booking assignments (provider accept/decline).
 """
+
 import random
 import uuid
 from datetime import datetime
@@ -42,31 +43,40 @@ def get_provider_id_for_user(session: SessionDep, user_id: uuid.UUID) -> uuid.UU
 
 @router.get("/pending", response_model=AssignmentsPublic)
 def get_pending_assignments(
-    session: SessionDep,
-    current_user: User = Depends(get_current_user)
+    session: SessionDep, current_user: User = Depends(get_current_user)
 ) -> Any:
     """
     Get all pending assignments for the current provider.
     """
     # Get provider ID
     provider_id = get_provider_id_for_user(session, current_user.id)
-    logger.info({
-        "event_type": "assignment_flow",
-        "event_name": "fetch_pending_assignments",
-        "provider_id": str(provider_id)
-    })
+    logger.info(
+        {
+            "event_type": "assignment_flow",
+            "event_name": "fetch_pending_assignments",
+            "provider_id": str(provider_id),
+        }
+    )
 
     # Get pending assignments
-    statement = select(AssignmentQueueDB).where(
-        AssignmentQueueDB.provider_id == provider_id,
-        AssignmentQueueDB.status == "pending"
-    ).order_by(AssignmentQueueDB.created_at.desc()) # type: ignore
+    statement = (
+        select(AssignmentQueueDB)
+        .where(
+            AssignmentQueueDB.provider_id == provider_id,
+            AssignmentQueueDB.status == "pending",
+        )
+        .order_by(AssignmentQueueDB.created_at.desc())
+    )  # type: ignore
 
     assignments_db = session.exec(statement).all()
-    
-    logger.info(f"DEBUG: Found {len(assignments_db)} pending assignments for provider {provider_id}")
+
+    logger.info(
+        f"DEBUG: Found {len(assignments_db)} pending assignments for provider {provider_id}"
+    )
     for a in assignments_db:
-        logger.info(f"DEBUG: Pending Assignment ID: {a.id}, Status: {a.status}, Expires At: {a.expires_at}")
+        logger.info(
+            f"DEBUG: Pending Assignment ID: {a.id}, Status: {a.status}, Expires At: {a.expires_at}"
+        )
 
     # Filter expired assignments and enrich with booking details
     now = datetime.utcnow()
@@ -79,12 +89,14 @@ def get_pending_assignments(
             assignment.status = "expired"
             session.add(assignment)
             session.commit()
-            logger.info({
-                "event_type": "assignment_lifecycle",
-                "event_name": "assignment_expired_check",
-                "assignment_id": str(assignment.id),
-                "reason": "expired_during_fetch"
-            })
+            logger.info(
+                {
+                    "event_type": "assignment_lifecycle",
+                    "event_name": "assignment_expired_check",
+                    "assignment_id": str(assignment.id),
+                    "reason": "expired_during_fetch",
+                }
+            )
             continue
 
         # Enrich with booking details
@@ -92,7 +104,9 @@ def get_pending_assignments(
         if enriched.booking:
             assignments.append(enriched)
         else:
-            logger.warning(f"DEBUG: Booking missing for assignment {assignment.id} (Booking ID: {assignment.booking_id})")
+            logger.warning(
+                f"DEBUG: Booking missing for assignment {assignment.id} (Booking ID: {assignment.booking_id})"
+            )
 
     logger.info(f"DEBUG: Returning {len(assignments)} assignments")
     return AssignmentsPublic(data=assignments, count=len(assignments))
@@ -102,7 +116,7 @@ def get_pending_assignments(
 def accept_assignment(
     assignment_id: uuid.UUID,
     session: SessionDep,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     Accept a booking assignment.
@@ -110,12 +124,14 @@ def accept_assignment(
     """
     # Get provider ID
     provider_id = get_provider_id_for_user(session, current_user.id)
-    logger.info({
-        "event_type": "assignment_flow",
-        "event_name": "accept_assignment_attempt",
-        "provider_id": str(provider_id),
-        "assignment_id": str(assignment_id)
-    })
+    logger.info(
+        {
+            "event_type": "assignment_flow",
+            "event_name": "accept_assignment_attempt",
+            "provider_id": str(provider_id),
+            "assignment_id": str(assignment_id),
+        }
+    )
 
     # Get the assignment
     assignment = session.get(AssignmentQueueDB, assignment_id)
@@ -129,7 +145,9 @@ def accept_assignment(
 
     # Check if already processed
     if assignment.status != "pending":
-        return AssignmentResponse(success=False, error=f"Assignment already {assignment.status}")
+        return AssignmentResponse(
+            success=False, error=f"Assignment already {assignment.status}"
+        )
 
     # Check if assignment expired
     if assignment.expires_at and assignment.expires_at < datetime.utcnow():
@@ -145,7 +163,9 @@ def accept_assignment(
         return AssignmentResponse(success=False, error="Booking not found")
 
     if booking.provider_id:
-        return AssignmentResponse(success=False, error="Booking already assigned to another provider")
+        return AssignmentResponse(
+            success=False, error="Booking already assigned to another provider"
+        )
 
     # Accept the assignment
     assignment.status = "accepted"
@@ -156,7 +176,7 @@ def accept_assignment(
     statement = select(AssignmentQueueDB).where(
         AssignmentQueueDB.booking_id == assignment.booking_id,
         AssignmentQueueDB.id != assignment_id,
-        AssignmentQueueDB.status == "pending"
+        AssignmentQueueDB.status == "pending",
     )
     other_assignments = session.exec(statement).all()
     for other in other_assignments:
@@ -179,18 +199,20 @@ def accept_assignment(
 
     session.commit()
     session.commit()
-    logger.info({
-        "event_type": "assignment_flow",
-        "event_name": "assignment_accepted",
-        "booking_id": str(assignment.booking_id),
-        "provider_id": str(provider_id),
-        "assignment_id": str(assignment.id)
-    })
+    logger.info(
+        {
+            "event_type": "assignment_flow",
+            "event_name": "assignment_accepted",
+            "booking_id": str(assignment.booking_id),
+            "provider_id": str(provider_id),
+            "assignment_id": str(assignment.id),
+        }
+    )
 
     return AssignmentResponse(
         success=True,
         message="Booking accepted successfully",
-        booking_id=assignment.booking_id
+        booking_id=assignment.booking_id,
     )
 
 
@@ -198,19 +220,21 @@ def accept_assignment(
 def decline_assignment(
     assignment_id: uuid.UUID,
     session: SessionDep,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     Decline a booking assignment.
     """
     # Get provider ID
     provider_id = get_provider_id_for_user(session, current_user.id)
-    logger.info({
-        "event_type": "assignment_flow",
-        "event_name": "decline_assignment",
-        "provider_id": str(provider_id),
-        "assignment_id": str(assignment_id)
-    })
+    logger.info(
+        {
+            "event_type": "assignment_flow",
+            "event_name": "decline_assignment",
+            "provider_id": str(provider_id),
+            "assignment_id": str(assignment_id),
+        }
+    )
 
     # Get the assignment
     assignment = session.get(AssignmentQueueDB, assignment_id)
@@ -224,7 +248,9 @@ def decline_assignment(
 
     # Check if already processed
     if assignment.status != "pending":
-        return AssignmentResponse(success=False, error=f"Assignment already {assignment.status}")
+        return AssignmentResponse(
+            success=False, error=f"Assignment already {assignment.status}"
+        )
 
     # Decline the assignment
     assignment.status = "declined"
@@ -235,7 +261,7 @@ def decline_assignment(
     # Check if there are remaining pending assignments for this booking
     statement = select(AssignmentQueueDB).where(
         AssignmentQueueDB.booking_id == assignment.booking_id,
-        AssignmentQueueDB.status == "pending"
+        AssignmentQueueDB.status == "pending",
     )
     remaining_count = len(session.exec(statement).all())
 
@@ -251,7 +277,9 @@ def decline_assignment(
     return AssignmentResponse(success=True, message="Assignment declined")
 
 
-def _enrich_assignment(session: SessionDep, assignment: AssignmentQueueDB) -> AssignmentWithBooking:
+def _enrich_assignment(
+    session: SessionDep, assignment: AssignmentQueueDB
+) -> AssignmentWithBooking:
     """
     Enrich an assignment with booking and service details.
     """
@@ -283,7 +311,7 @@ def _enrich_assignment(session: SessionDep, assignment: AssignmentQueueDB) -> As
             created_at=booking.created_at,
             updated_at=booking.updated_at,
             service=service,
-            provider=None
+            provider=None,
         )
 
     return AssignmentWithBooking(

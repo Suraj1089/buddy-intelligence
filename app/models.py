@@ -118,11 +118,11 @@ class NewPassword(SQLModel):
 
 class UserDeviceDB(SQLModel, table=True):
     """User device tokens for push notifications."""
+
     __tablename__ = "user_devices"
-    
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = Field(foreign_key="user.id", index=True)
     fcm_token: str = Field(index=True)
     platform: str | None = None  # web, ios, android
     last_updated_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
-

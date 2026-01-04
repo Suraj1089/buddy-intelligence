@@ -1,6 +1,7 @@
 """
 API routes for service categories and services.
 """
+
 import uuid
 from typing import Any
 
@@ -52,7 +53,7 @@ def get_category(category_id: uuid.UUID, session: SessionDep) -> Any:
 @router.get("", response_model=ServicesPublic)
 def list_services(
     session: SessionDep,
-    category_id: uuid.UUID | None = Query(None, description="Filter by category ID")
+    category_id: uuid.UUID | None = Query(None, description="Filter by category ID"),
 ) -> Any:
     """
     Get all services, optionally filtered by category.
@@ -82,7 +83,11 @@ def get_service(service_id: uuid.UUID, session: SessionDep) -> Any:
     return ServicePublic.model_validate(service)
 
 
-@router.post("/", dependencies=[Depends(get_current_active_superuser)], response_model=ServicePublic)
+@router.post(
+    "/",
+    dependencies=[Depends(get_current_active_superuser)],
+    response_model=ServicePublic,
+)
 def create_service(*, session: SessionDep, service_in: ServiceCreate) -> Any:
     """
     Create a new service (Admin only).
@@ -94,12 +99,13 @@ def create_service(*, session: SessionDep, service_in: ServiceCreate) -> Any:
     return ServicePublic.model_validate(service)
 
 
-@router.patch("/{service_id}", dependencies=[Depends(get_current_active_superuser)], response_model=ServicePublic)
+@router.patch(
+    "/{service_id}",
+    dependencies=[Depends(get_current_active_superuser)],
+    response_model=ServicePublic,
+)
 def update_service(
-    *,
-    session: SessionDep,
-    service_id: uuid.UUID,
-    service_in: ServiceUpdate
+    *, session: SessionDep, service_id: uuid.UUID, service_in: ServiceUpdate
 ) -> Any:
     """
     Update a service (Admin only).
@@ -107,7 +113,7 @@ def update_service(
     service = session.get(ServiceDB, service_id)
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
-    
+
     update_data = service_in.model_dump(exclude_unset=True)
     service.sqlmodel_update(update_data)
     session.add(service)
@@ -116,7 +122,11 @@ def update_service(
     return ServicePublic.model_validate(service)
 
 
-@router.delete("/{service_id}", dependencies=[Depends(get_current_active_superuser)], response_model=Message)
+@router.delete(
+    "/{service_id}",
+    dependencies=[Depends(get_current_active_superuser)],
+    response_model=Message,
+)
 def delete_service(*, session: SessionDep, service_id: uuid.UUID) -> Any:
     """
     Delete a service (Admin only).
@@ -124,7 +134,7 @@ def delete_service(*, session: SessionDep, service_id: uuid.UUID) -> Any:
     service = session.get(ServiceDB, service_id)
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
-    
+
     session.delete(service)
     session.commit()
     return Message(message="Service deleted successfully")

@@ -1,7 +1,8 @@
 """
 Authentication routes - register, login, logout, token refresh.
-Replaces Supabase Auth with FastAPI-native authentication.
+Replaces external Auth with FastAPI-native authentication.
 """
+
 import uuid
 from datetime import timedelta
 from typing import Any
@@ -25,8 +26,10 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login
 
 # ============== Schemas ==============
 
+
 class RegisterRequest(BaseModel):
     """User registration request."""
+
     email: EmailStr
     password: str
     full_name: str
@@ -36,12 +39,14 @@ class RegisterRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     """Login request."""
+
     email: EmailStr
     password: str
 
 
 class TokenResponse(BaseModel):
     """Token response."""
+
     access_token: str
     token_type: str = "bearer"
     expires_in: int
@@ -50,6 +55,7 @@ class TokenResponse(BaseModel):
 
 class UserResponse(BaseModel):
     """User response."""
+
     id: str
     email: str
     full_name: str | None = None
@@ -61,14 +67,15 @@ class UserResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     """Generic message response."""
+
     message: str
 
 
 # ============== Helper Functions ==============
 
+
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    session: Session = Depends(get_session)
+    token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)
 ) -> User:
     """Get current user from JWT token."""
     credentials_exception = HTTPException(
@@ -101,14 +108,13 @@ async def get_current_user(
 
 def get_profile(session: Session, user_id: uuid.UUID) -> ProfileDB | None:
     """Get user profile."""
-    return session.exec(
-        select(ProfileDB).where(ProfileDB.user_id == user_id)
-    ).first()
+    return session.exec(select(ProfileDB).where(ProfileDB.user_id == user_id)).first()
 
 
 def is_provider(session: Session, user_id: uuid.UUID) -> bool:
     """Check if user is a provider."""
     from app.booking_models import ProviderDB
+
     provider = session.exec(
         select(ProviderDB).where(ProviderDB.user_id == user_id)
     ).first()
@@ -117,11 +123,9 @@ def is_provider(session: Session, user_id: uuid.UUID) -> bool:
 
 # ============== Routes ==============
 
+
 @router.post("/register", response_model=TokenResponse)
-def register(
-    request: RegisterRequest,
-    session: Session = Depends(get_session)
-) -> Any:
+def register(request: RegisterRequest, session: Session = Depends(get_session)) -> Any:
     """
     Register a new user.
     Creates user account and profile.
@@ -130,8 +134,7 @@ def register(
     existing_user = crud.get_user_by_email(session=session, email=request.email)
     if existing_user:
         raise HTTPException(
-            status_code=400,
-            detail="A user with this email already exists."
+            status_code=400, detail="A user with this email already exists."
         )
 
     # Create user
@@ -167,23 +170,21 @@ def register(
             "full_name": request.full_name,
             "is_provider": False,
             "is_superuser": user.is_superuser,
-        }
+        },
     )
 
 
 @router.post("/login", response_model=TokenResponse)
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ) -> Any:
     """
     Login with email and password.
     Returns JWT access token.
     """
     user = crud.authenticate(
-        session=session,
-        email=form_data.username,
-        password=form_data.password
+        session=session, email=form_data.username, password=form_data.password
     )
 
     if not user:
@@ -215,22 +216,17 @@ def login(
             "full_name": profile.full_name if profile else None,
             "is_provider": provider_status,
             "is_superuser": user.is_superuser,
-        }
+        },
     )
 
 
 @router.post("/login/json", response_model=TokenResponse)
-def login_json(
-    request: LoginRequest,
-    session: Session = Depends(get_session)
-) -> Any:
+def login_json(request: LoginRequest, session: Session = Depends(get_session)) -> Any:
     """
     Login with JSON body (alternative to form-based login).
     """
     user = crud.authenticate(
-        session=session,
-        email=request.email,
-        password=request.password
+        session=session, email=request.email, password=request.password
     )
 
     if not user:
@@ -261,14 +257,14 @@ def login_json(
             "full_name": profile.full_name if profile else None,
             "is_provider": provider_status,
             "is_superuser": user.is_superuser,
-        }
+        },
     )
 
 
 @router.get("/me", response_model=UserResponse)
 def get_me(
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ) -> Any:
     """
     Get current user information.
@@ -300,7 +296,7 @@ def logout() -> Any:
 @router.post("/refresh", response_model=TokenResponse)
 def refresh_token(
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ) -> Any:
     """
     Refresh access token.
@@ -324,5 +320,5 @@ def refresh_token(
             "full_name": profile.full_name if profile else None,
             "is_provider": provider_status,
             "is_superuser": current_user.is_superuser,
-        }
+        },
     )

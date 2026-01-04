@@ -1,6 +1,7 @@
 """
 API routes for bookings.
 """
+
 import uuid
 from datetime import datetime
 from typing import Any
@@ -34,9 +35,10 @@ def generate_booking_number() -> str:
     """Generate a unique booking number."""
     import random
     import string
+
     prefix = "BK"
     timestamp = datetime.now().strftime("%y%m%d")
-    random_suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+    random_suffix = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
     return f"{prefix}{timestamp}{random_suffix}"
 
 
@@ -55,12 +57,14 @@ async def create_booking(
     """
     user_id = current_user.id
     user_id = current_user.id
-    logger.info({
-        "event_type": "booking_flow",
-        "event_name": "create_booking_start",
-        "user_id": str(user_id),
-        "service_id": str(booking_in.service_id)
-    })
+    logger.info(
+        {
+            "event_type": "booking_flow",
+            "event_name": "create_booking_start",
+            "user_id": str(user_id),
+            "service_id": str(booking_in.service_id),
+        }
+    )
 
     # Get service details for estimated price if not provided
     if not booking_in.estimated_price:
@@ -74,12 +78,14 @@ async def create_booking(
     if booking_in.location:
         lat, lon = await get_coordinates(booking_in.location)
         lat, lon = await get_coordinates(booking_in.location)
-        logger.info({
-            "event_type": "geocoding",
-            "event_name": "location_resolved",
-            "location": booking_in.location,
-            "coordinates": {"lat": lat, "lon": lon}
-        })
+        logger.info(
+            {
+                "event_type": "geocoding",
+                "event_name": "location_resolved",
+                "location": booking_in.location,
+                "coordinates": {"lat": lat, "lon": lon},
+            }
+        )
 
     # Generate booking number
     booking_number = generate_booking_number()
@@ -105,24 +111,29 @@ async def create_booking(
     session.refresh(booking)
 
     # Trigger background task for provider assignment
-    # Note: Task system likely needs refactoring if it uses Supabase client.
+    # Note: Task system likely needs refactoring if it uses external client.
     # For now, we attempt to trigger it.
     try:
         from app.tasks.assignment_tasks import process_new_booking
+
         # process_new_booking.delay(str(booking.id))
-        logger.info({
-            "event_type": "booking_flow",
-            "event_name": "trigger_assignment_task",
-            "booking_id": str(booking.id)
-        })
+        logger.info(
+            {
+                "event_type": "booking_flow",
+                "event_name": "trigger_assignment_task",
+                "booking_id": str(booking.id),
+            }
+        )
         process_new_booking.delay(str(booking.id))
     except Exception as e:
-        logger.error({
-            "event_type": "booking_flow",
-            "event_name": "trigger_assignment_failed",
-            "error": str(e),
-            "booking_id": str(booking.id)
-        })
+        logger.error(
+            {
+                "event_type": "booking_flow",
+                "event_name": "trigger_assignment_failed",
+                "error": str(e),
+                "booking_id": str(booking.id),
+            }
+        )
 
     # Fetch related service and provider details
     result = _enrich_booking(session, booking)
@@ -196,14 +207,16 @@ def get_booking(
                     select(AssignmentQueueDB).where(
                         AssignmentQueueDB.booking_id == booking.id,
                         AssignmentQueueDB.provider_id == provider.id,
-                        AssignmentQueueDB.status.in_(["pending", "accepted"])
+                        AssignmentQueueDB.status.in_(["pending", "accepted"]),
                     )
                 ).first()
                 if assignment:
                     is_provider = True
 
     if not is_owner and not is_provider:
-        raise HTTPException(status_code=403, detail="Not authorized to view this booking")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to view this booking"
+        )
 
     return _enrich_booking(session, booking)
 
@@ -242,31 +255,33 @@ def update_booking_status(
                     select(AssignmentQueueDB).where(
                         AssignmentQueueDB.booking_id == booking.id,
                         AssignmentQueueDB.provider_id == provider.id,
-                        AssignmentQueueDB.status.in_(["pending", "accepted"])
+                        AssignmentQueueDB.status.in_(["pending", "accepted"]),
                     )
                 ).first()
                 if assignment:
                     is_provider = True
 
     if not is_owner and not is_provider:
-        raise HTTPException(status_code=403, detail="Not authorized to update this booking")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to update this booking"
+        )
 
     # Update fields
     booking.updated_at = datetime.utcnow()
 
     if status_update.status:
         new_status = status_update.status.value
-        
+
         # If provider is accepting (confirmed), assign them to the booking
         if new_status == "confirmed" and is_provider and provider:
             booking.provider_id = provider.id
             booking.status = new_status
-            
+
             # Update their assignment to accepted and expire others
             session.exec(
                 select(AssignmentQueueDB).where(
                     AssignmentQueueDB.booking_id == booking.id,
-                    AssignmentQueueDB.provider_id == provider.id
+                    AssignmentQueueDB.provider_id == provider.id,
                 )
             )
             assignments = session.exec(
@@ -274,20 +289,20 @@ def update_booking_status(
                     AssignmentQueueDB.booking_id == booking.id
                 )
             ).all()
-            
+
             for assignment in assignments:
                 if assignment.provider_id == provider.id:
                     assignment.status = "accepted"
                 else:
                     assignment.status = "expired"
                 session.add(assignment)
-                    
+
         # If provider is declining (cancelled), mark their assignment as rejected
         elif new_status == "cancelled" and is_provider and provider:
             assignment = session.exec(
                 select(AssignmentQueueDB).where(
                     AssignmentQueueDB.booking_id == booking.id,
-                    AssignmentQueueDB.provider_id == provider.id
+                    AssignmentQueueDB.provider_id == provider.id,
                 )
             ).first()
             if assignment:
@@ -296,7 +311,7 @@ def update_booking_status(
             # Don't change booking status - let the system find another provider
         else:
             booking.status = new_status
-            
+
     if status_update.final_price is not None:
         booking.final_price = status_update.final_price
 
@@ -324,11 +339,16 @@ def cancel_booking(
 
     # Only booking owner can cancel
     if booking.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized to cancel this booking")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to cancel this booking"
+        )
 
     # Check if booking can be cancelled
     if booking.status in ["completed", "cancelled"]:
-        raise HTTPException(status_code=400, detail=f"Cannot cancel booking with status: {booking.status}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel booking with status: {booking.status}",
+        )
 
     # Cancel the booking
     booking.status = "cancelled"
@@ -338,7 +358,6 @@ def cancel_booking(
     session.commit()
 
     return MessageResponse(message="Booking cancelled successfully")
-
 
 
 @router.post("/{booking_id}/rate", response_model=MessageResponse)
@@ -369,12 +388,12 @@ def rate_booking(
     # Update Provider Rating
     if booking.provider_id:
         from sqlalchemy import func
+
         statement = select(func.avg(BookingDB.rating)).where(
-            BookingDB.provider_id == booking.provider_id,
-            BookingDB.rating != None
+            BookingDB.provider_id == booking.provider_id, BookingDB.rating != None
         )
         avg_rating = session.exec(statement).first()
-        
+
         provider = session.get(ProviderDB, booking.provider_id)
         if provider and avg_rating:
             provider.rating = float(avg_rating)
@@ -384,8 +403,11 @@ def rate_booking(
     return MessageResponse(message="Rating submitted successfully")
 
 
-
-@router.patch("/{booking_id}/admin", dependencies=[Depends(get_current_active_superuser)], response_model=BookingWithDetails)
+@router.patch(
+    "/{booking_id}/admin",
+    dependencies=[Depends(get_current_active_superuser)],
+    response_model=BookingWithDetails,
+)
 def update_booking_admin(
     booking_id: uuid.UUID,
     booking_in: BookingAdminUpdate,
@@ -401,13 +423,12 @@ def update_booking_admin(
 
     update_data = booking_in.model_dump(exclude_unset=True)
     booking.sqlmodel_update(update_data)
-    
+
     session.add(booking)
     session.commit()
     session.refresh(booking)
-    
-    return _enrich_booking(session, booking)
 
+    return _enrich_booking(session, booking)
 
 
 def _enrich_booking(session: SessionDep, booking: BookingDB) -> BookingWithDetails:
@@ -430,23 +451,27 @@ def _enrich_booking(session: SessionDep, booking: BookingDB) -> BookingWithDetai
         provider_db = session.get(ProviderDB, booking.provider_id)
         if provider_db:
             provider = ProviderPublic.model_validate(provider_db)
-            
+
     # Fetch user profile and email
     if booking.user_id:
         # Get User object for email
         from app.models import User
+
         user = session.get(User, booking.user_id)
         if user:
             user_email = user.email
-            
+
         # Get Profile object for additional details
         from app.booking_models import ProfileDB, ProfilePublic
-        profile_db = session.exec(select(ProfileDB).where(ProfileDB.user_id == booking.user_id)).first()
+
+        profile_db = session.exec(
+            select(ProfileDB).where(ProfileDB.user_id == booking.user_id)
+        ).first()
         if profile_db:
             user_profile = ProfilePublic.model_validate(profile_db)
         elif user:
-             # Fallback to creating a profile object from User data if ProfileDB entry doesn't exist
-             user_profile = ProfilePublic(full_name=user.full_name)
+            # Fallback to creating a profile object from User data if ProfileDB entry doesn't exist
+            user_profile = ProfilePublic(full_name=user.full_name)
 
     return BookingWithDetails(
         id=booking.id,
@@ -472,4 +497,3 @@ def _enrich_booking(session: SessionDep, booking: BookingDB) -> BookingWithDetai
         user_profile=user_profile,
         user_email=user_email,
     )
-

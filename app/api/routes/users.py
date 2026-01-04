@@ -154,20 +154,19 @@ def register_user(session: SessionDep, user_in: UserRegister) -> Any:
     # Create role-specific profile
     if user_in.role == "provider":
         from app.booking_models import ProviderDB
+
         provider = ProviderDB(
             user_id=user.id,
             business_name=user_in.full_name or "New Provider",
             email=user_in.email,
-            is_available=True
+            is_available=True,
         )
         session.add(provider)
     else:
         # Default to user profile
         from app.booking_models import ProfileDB
-        profile = ProfileDB(
-            user_id=user.id,
-            full_name=user_in.full_name
-        )
+
+        profile = ProfileDB(user_id=user.id, full_name=user_in.full_name)
         session.add(profile)
 
     session.commit()

@@ -8,13 +8,16 @@ Tests cover:
 - Update booking status
 - Cancel booking
 """
+
 import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
 
 
-def get_auth_headers(client: TestClient, email: str = "bookinguser@example.com") -> dict:
+def get_auth_headers(
+    client: TestClient, email: str = "bookinguser@example.com"
+) -> dict:
     """Helper to get auth headers for a test user."""
     # Try to register, ignore if already exists
     client.post(

@@ -15,7 +15,7 @@
 # Python and virtual environment
 PYTHON := python3
 UV := uv
-BACKEND_DIR := backend
+BACKEND_DIR := .
 
 # Docker configuration
 DOCKER_COMPOSE := docker-compose
@@ -95,7 +95,7 @@ venv-info: ## Show virtual environment info
 
 .PHONY: dev
 dev: ## Start FastAPI development server with hot reload
-	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run fastapi dev app/main.py
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run python -m fastapi dev app/main.py
 
 .PHONY: run
 run: ## Start FastAPI production server
@@ -116,26 +116,30 @@ shell: ## Start interactive IPython shell with app context
 
 .PHONY: celery
 celery: ## Start Celery worker for background tasks
-	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) worker -l info
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run python -m celery -A $(CELERY_APP) worker -l info
 
 .PHONY: celery-beat
 celery-beat: ## Start Celery beat scheduler for periodic tasks
-	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) beat -l info
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run python -m celery -A $(CELERY_APP) beat -l info
 
 .PHONY: celery-flower
 celery-flower: ## Start Flower (Celery monitoring dashboard) on port 5555
-	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) flower --port=5555
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run python -m celery -A $(CELERY_APP) flower --port=5555
 
 .PHONY: celery-all
 celery-all: ## Start both Celery worker and beat in background (use with caution)
 	@echo "Starting Celery worker and beat..."
-	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) worker -l info --detach
-	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run celery -A $(CELERY_APP) beat -l info --detach
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run python -m celery -A $(CELERY_APP) worker -l info --detach
+	unset POSTGRES_PORT && cd $(BACKEND_DIR) && $(UV) run python -m celery -A $(CELERY_APP) beat -l info --detach
 	@echo "Celery services started in background"
 
 # ------------------------------------------------------------------------------
 # REDIS
 # ------------------------------------------------------------------------------
+
+.PHONY: redis-local
+redis-local: ## Start local Redis with 500MB memory limit
+	bash scripts/run_redis_local.sh
 
 .PHONY: redis
 redis: ## Start Redis server (requires redis-server installed)

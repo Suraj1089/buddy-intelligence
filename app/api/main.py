@@ -32,10 +32,9 @@ api_router.include_router(assignments.router)
 api_router.include_router(notifications.router)
 api_router.include_router(location.router, prefix="/location", tags=["location"])
 
-# Auth routes (FastAPI-native, replaces Supabase Auth)
+# Auth routes (FastAPI-native)
 api_router.include_router(auth.router)
 
 
 if settings.ENVIRONMENT == "local":
     api_router.include_router(private.router)
-

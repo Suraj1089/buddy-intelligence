@@ -1,4 +1,3 @@
-
 from sqlmodel import Session, select
 
 from app.booking_models import (
@@ -14,7 +13,9 @@ from app.core.db import engine
 def check_assignment_status():
     with Session(engine) as session:
         # Get the most recent booking
-        booking = session.exec(select(BookingDB).order_by(BookingDB.created_at.desc())).first()
+        booking = session.exec(
+            select(BookingDB).order_by(BookingDB.created_at.desc())
+        ).first()
         if not booking:
             print("No bookings found.")
             return
@@ -36,7 +37,9 @@ def check_assignment_status():
 
         # Check Providers offering this service
         provider_services = session.exec(
-            select(ProviderServicesDB).where(ProviderServicesDB.service_id == booking.service_id)
+            select(ProviderServicesDB).where(
+                ProviderServicesDB.service_id == booking.service_id
+            )
         ).all()
 
         print(f"  Found {len(provider_services)} providers linked to this service.")
@@ -53,10 +56,10 @@ def check_assignment_status():
             print(f"    - Is Available: {provider.is_available}")
             print(f"    - Offers Service: {is_linked}")
             if booking.location and provider.latitude:
-                 # simple check
-                 print(f"    - Location: {provider.latitude}, {provider.longitude}")
+                # simple check
+                print(f"    - Location: {provider.latitude}, {provider.longitude}")
             else:
-                 print(f"    - Location: {provider.latitude}, {provider.longitude}")
+                print(f"    - Location: {provider.latitude}, {provider.longitude}")
 
         # Check Assignment Queue
         print("\nChecking Assignment Queue for this booking:")
@@ -69,12 +72,15 @@ def check_assignment_status():
         else:
             for assignment in assignments:
                 provider = session.get(ProviderDB, assignment.provider_id)
-                provider_name = provider.business_name if provider else "Unknown Provider"
+                provider_name = (
+                    provider.business_name if provider else "Unknown Provider"
+                )
                 print(f"  Assignment ID: {assignment.id}")
                 print(f"    - Provider: {provider_name} (ID: {assignment.provider_id})")
                 print(f"    - Status: {assignment.status}")
                 print(f"    - Expires At: {assignment.expires_at}")
                 print(f"    - Created At: {assignment.created_at}")
+
 
 if __name__ == "__main__":
     check_assignment_status()

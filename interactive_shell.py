@@ -1,4 +1,3 @@
-
 import os
 import sys
 
@@ -18,7 +17,9 @@ def init():
     print("\nAvailable objects:")
     print("  - session: Active SQLModel Session")
     print("  - select: SQLModel select function")
-    print("  - User, BookingDB, ProviderDB, ServiceDB, AssignmentQueueDB: Database Models")
+    print(
+        "  - User, BookingDB, ProviderDB, ServiceDB, AssignmentQueueDB: Database Models"
+    )
     print("  - engine: Database Engine")
 
     # Check basic stats
@@ -31,6 +32,7 @@ def init():
 
     print("\nUsage Example: user = session.exec(select(User)).first()")
     print("--------------------------------------------\n")
+
 
 if __name__ == "__main__":
     with Session(engine) as session:

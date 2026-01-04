@@ -7,6 +7,7 @@ Tests cover:
 - Decline assignment
 - Assignment expiration
 """
+
 import pytest
 from fastapi.testclient import TestClient
 

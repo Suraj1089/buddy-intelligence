@@ -19,6 +19,21 @@ services:
       - POSTGRES_USER=${POSTGRES_USER?Variable not set}
       - POSTGRES_DB=${POSTGRES_DB?Variable not set}
 
+  redis:
+    image: redis:alpine
+    restart: always
+    command: redis-server --maxmemory 500mb --maxmemory-policy allkeys-lru --appendonly yes
+    volumes:
+      - app-redis-data:/data
+    networks:
+      - traefik-public
+      - default
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   adminer:
     image: adminer
     restart: always
@@ -164,6 +179,7 @@ services:
       - traefik.http.routers.${STACK_NAME?Variable not set}-frontend-http.middlewares=https-redirect
 volumes:
   app-db-data:
+  app-redis-data:
 
 networks:
   traefik-public:

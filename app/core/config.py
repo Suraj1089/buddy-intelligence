@@ -14,22 +14,21 @@ from pydantic import (
 )
 
 from pydantic_settings import (
-    BaseSettings, 
-    SettingsConfigDict, 
-    PydanticBaseSettingsSource
+    BaseSettings,
+    SettingsConfigDict,
+    PydanticBaseSettingsSource,
 )
 from typing_extensions import Self
 
 from app.core.secrets_manager import secrets
 
+
 class SecretManagerSource(PydanticBaseSettingsSource):
-    def get_field_value(
-        self, field: Any, field_name: str
-    ) -> tuple[Any, str, bool]:
+    def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:
         # Try to get from secrets manager
         val = secrets.get(field_name)
         if val is not None:
-             return val, field_name, False
+            return val, field_name, False
         return None, field_name, False
 
     def prepare_field_value(
@@ -44,12 +43,11 @@ class SecretManagerSource(PydanticBaseSettingsSource):
         # Getting all secrets is easier
         for k, v in secrets.all_secrets.items():
             d[k] = v
-        # Also validation for case-insensitivity? 
+        # Also validation for case-insensitivity?
         # Pydantic v2 source implementation is slightly different.
-        # Simple dict return usually works for custom sources in v1, 
+        # Simple dict return usually works for custom sources in v1,
         # but in v2 we need to implement __call__ returning a dict.
         return d
-
 
 
 def parse_cors(v: Any) -> list[str] | str:
@@ -118,11 +116,6 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = ""
-
-    # Supabase configuration (for production PostgreSQL)
-    SUPABASE_URL: str = ""
-    SUPABASE_SERVICE_KEY: str = ""
-    SUPABASE_JWT_SECRET: str | None = None
 
     # Redis configuration
     REDIS_URL: str = "redis://localhost:6379/0"

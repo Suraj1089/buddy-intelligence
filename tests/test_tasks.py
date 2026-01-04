@@ -6,6 +6,7 @@ Tests cover:
 - Provider scoring algorithm
 - Expiration checking
 """
+
 from unittest.mock import MagicMock
 
 from app.tasks.assignment_tasks import (
@@ -96,8 +97,11 @@ class TestProviderScoring:
         # Provider with many active bookings
         session_busy = MagicMock()
         session_busy.exec.return_value.all.return_value = [
-            MagicMock(), MagicMock(), MagicMock(),
-            MagicMock(), MagicMock()  # 5 active bookings
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),  # 5 active bookings
         ]
 
         free_score = calculate_provider_score(session_free, provider, booking)
@@ -149,6 +153,7 @@ class TestFindMatchingProviders:
 
         # Setup mock returns
         call_count = [0]
+
         def mock_exec(*args, **kwargs):
             result = MagicMock()
             if call_count[0] == 0:

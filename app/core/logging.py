@@ -1,4 +1,3 @@
-
 import json
 import logging
 import sys
@@ -11,16 +10,20 @@ class StructuredAdapter(logging.LoggerAdapter):
             msg = json.dumps(msg)
         return msg, kwargs
 
+
 def get_logger(name: str) -> StructuredAdapter:
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
 
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
     return StructuredAdapter(logger, {})
+
 
 logger = get_logger(__name__)

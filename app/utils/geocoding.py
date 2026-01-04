@@ -1,9 +1,9 @@
-
 import logging
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
 
 async def get_coordinates(address: str) -> tuple[float | None, float | None]:
     """
@@ -16,18 +16,12 @@ async def get_coordinates(address: str) -> tuple[float | None, float | None]:
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             # Nominatim usage policy requires a valid User-Agent
-            headers = {
-                "User-Agent": "BuddyIntelligence/1.0 (dev@buddy.localhost)"
-            }
+            headers = {"User-Agent": "BuddyIntelligence/1.0 (dev@buddy.localhost)"}
 
             response = await client.get(
                 "https://nominatim.openstreetmap.org/search",
-                params={
-                    "q": address,
-                    "format": "json",
-                    "limit": 1
-                },
-                headers=headers
+                params={"q": address, "format": "json", "limit": 1},
+                headers=headers,
             )
 
             response.raise_for_status()

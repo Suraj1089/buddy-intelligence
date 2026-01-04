@@ -1,6 +1,7 @@
 """
 Celery application configuration for background tasks.
 """
+
 from celery import Celery
 
 from app.core.config import settings
@@ -40,4 +41,3 @@ celery_app.conf.beat_schedule = {
         "schedule": 60.0,  # Every minute
     },
 }
-

@@ -3,12 +3,27 @@ from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
 
+from contextlib import asynccontextmanager
+from redis import asyncio as aioredis
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+
 from app.api.main import api_router
 from app.core.config import settings
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:
     return f"{route.tags[0]}-{route.name}"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.REDIS_URL:
+        redis = aioredis.from_url(
+            settings.REDIS_URL, encoding="utf8", decode_responses=True
+        )
+        FastAPICache.init(RedisBackend(redis), prefix="fastapi-cache")
+    yield
 
 
 if settings.SENTRY_DSN and settings.ENVIRONMENT != "local":
@@ -18,6 +33,7 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     generate_unique_id_function=custom_generate_unique_id,
+    lifespan=lifespan,
 )
 
 # Set all CORS enabled origins

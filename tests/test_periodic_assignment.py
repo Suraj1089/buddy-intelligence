@@ -1,4 +1,3 @@
-
 from unittest.mock import MagicMock, patch
 
 from sqlmodel import Session
@@ -41,11 +40,14 @@ class TestPeriodicAssignment:
 
         # Patch the dependencies
         # Patch the dependencies
-        with patch("app.tasks.assignment_tasks.Session") as mock_session_cls, \
-             patch("app.tasks.assignment_tasks.engine"), \
-             patch("app.tasks.assignment_tasks.process_new_booking") as mock_process_task, \
-             patch("app.tasks.assignment_tasks.logger"):
-
+        with (
+            patch("app.tasks.assignment_tasks.Session") as mock_session_cls,
+            patch("app.tasks.assignment_tasks.engine"),
+            patch(
+                "app.tasks.assignment_tasks.process_new_booking"
+            ) as mock_process_task,
+            patch("app.tasks.assignment_tasks.logger"),
+        ):
             # Configure Session context manager
             mock_session = mock_session_cls.return_value.__enter__.return_value
             mock_session.exec.side_effect = [bookings_result, pending_result]
@@ -82,11 +84,14 @@ class TestPeriodicAssignment:
 
         mock_session.exec.side_effect = [bookings_result, pending_result]
 
-        with patch("app.tasks.assignment_tasks.Session") as mock_session_cls, \
-             patch("app.tasks.assignment_tasks.engine"), \
-             patch("app.tasks.assignment_tasks.process_new_booking") as mock_process_task, \
-             patch("app.tasks.assignment_tasks.logger"):
-
+        with (
+            patch("app.tasks.assignment_tasks.Session") as mock_session_cls,
+            patch("app.tasks.assignment_tasks.engine"),
+            patch(
+                "app.tasks.assignment_tasks.process_new_booking"
+            ) as mock_process_task,
+            patch("app.tasks.assignment_tasks.logger"),
+        ):
             # Configure Session context manager
             mock_session = mock_session_cls.return_value.__enter__.return_value
             mock_session.exec.side_effect = [bookings_result, pending_result]

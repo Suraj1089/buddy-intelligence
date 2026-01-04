@@ -1,6 +1,7 @@
 """
 API routes for providers.
 """
+
 import uuid
 from datetime import datetime
 from typing import Any
@@ -36,11 +37,13 @@ router = APIRouter(prefix="/providers", tags=["providers"])
 
 class ProviderCreateRequest(ProviderBase):
     """Schema for creating a provider from API request."""
+
     pass
 
 
 class ProviderServiceLink(BaseModel):
     """Schema for linking services to a provider."""
+
     service_ids: list[uuid.UUID]
 
 
@@ -64,7 +67,7 @@ from app.utils.geocoding import get_coordinates
 async def create_provider(
     provider_in: ProviderCreateRequest,
     session: SessionDep,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     Create a provider profile for the current user.
@@ -83,10 +86,7 @@ async def create_provider(
 
     # Create provider
     provider = ProviderDB(
-        **provider_in.model_dump(),
-        user_id=current_user.id,
-        latitude=lat,
-        longitude=lon
+        **provider_in.model_dump(), user_id=current_user.id, latitude=lat, longitude=lon
     )
     # id, created_at, updated_at are handled by default_factory
 
@@ -101,7 +101,7 @@ async def create_provider(
 def add_provider_services(
     data: ProviderServiceLink,
     session: SessionDep,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     Add services to the current provider.
@@ -113,13 +113,10 @@ def add_provider_services(
         # Check if link already exists
         statement = select(ProviderServicesDB).where(
             ProviderServicesDB.provider_id == provider.id,
-            ProviderServicesDB.service_id == service_id
+            ProviderServicesDB.service_id == service_id,
         )
         if not session.exec(statement).first():
-            link = ProviderServicesDB(
-                provider_id=provider.id,
-                service_id=service_id
-            )
+            link = ProviderServicesDB(provider_id=provider.id, service_id=service_id)
             session.add(link)
             added_count += 1
 
@@ -130,8 +127,7 @@ def add_provider_services(
 
 @router.get("/me", response_model=ProviderPublic)
 def get_current_provider(
-    session: SessionDep,
-    current_user: User = Depends(get_current_user)
+    session: SessionDep, current_user: User = Depends(get_current_user)
 ) -> Any:
     """
     Get the current provider's profile.
@@ -144,7 +140,7 @@ def get_current_provider(
 async def update_current_provider(
     provider_update: ProviderUpdate,
     session: SessionDep,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     Update the current provider's profile.
@@ -161,10 +157,10 @@ async def update_current_provider(
         address_str = f"{new_address or ''} {new_city or ''}".strip()
 
         if address_str:
-             lat, lon = await get_coordinates(address_str)
-             if lat and lon:
-                 update_data["latitude"] = lat
-                 update_data["longitude"] = lon
+            lat, lon = await get_coordinates(address_str)
+            if lat and lon:
+                update_data["latitude"] = lat
+                update_data["longitude"] = lon
 
     provider.sqlmodel_update(update_data)
 
@@ -181,14 +177,18 @@ def get_provider_bookings(
     status: str | None = Query(None, description="Filter by status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     Get all bookings assigned to the current provider.
     """
     provider = get_provider_by_user_id(session, current_user.id)
 
-    statement = select(BookingDB).where(BookingDB.provider_id == provider.id).order_by(desc(BookingDB.created_at))
+    statement = (
+        select(BookingDB)
+        .where(BookingDB.provider_id == provider.id)
+        .order_by(desc(BookingDB.created_at))
+    )
 
     if status:
         statement = statement.where(BookingDB.status == status)
@@ -204,7 +204,7 @@ def get_provider_bookings(
 
     # Get total count (simplified, ignoring pagination for count)
     # Ideally use a separate count query
-    count = len(bookings) # This is page count, but schema expects total count.
+    count = len(bookings)  # This is page count, but schema expects total count.
     # For now, let's just return page length to be safe or run a count query.
     # Count query:
     count_statement = select(BookingDB).where(BookingDB.provider_id == provider.id)
@@ -223,21 +223,23 @@ def get_provider_bookings(
 
 class ProviderServiceAdd(BaseModel):
     """Schema for adding a single service to provider."""
+
     service_id: uuid.UUID
     custom_price: float | None = None
 
 
 @router.get("/me/services", response_model=ProviderServicesListPublic)
 def get_provider_services_list(
-    session: SessionDep,
-    current_user: User = Depends(get_current_user)
+    session: SessionDep, current_user: User = Depends(get_current_user)
 ) -> Any:
     """
     Get all services offered by the current provider.
     """
     provider = get_provider_by_user_id(session, current_user.id)
 
-    statement = select(ProviderServicesDB).where(ProviderServicesDB.provider_id == provider.id)
+    statement = select(ProviderServicesDB).where(
+        ProviderServicesDB.provider_id == provider.id
+    )
     links = session.exec(statement).all()
 
     data = []
@@ -249,7 +251,7 @@ def get_provider_services_list(
                 id=link.id,
                 service_id=link.service_id,
                 custom_price=link.custom_price,
-                service=service_public
+                service=service_public,
             )
             data.append(link_public)
 
@@ -260,7 +262,7 @@ def get_provider_services_list(
 def add_provider_service(
     service_in: ProviderServiceAdd,
     session: SessionDep,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     Add a single service to the current provider.
@@ -270,7 +272,7 @@ def add_provider_service(
     # Check if exists
     statement = select(ProviderServicesDB).where(
         ProviderServicesDB.provider_id == provider.id,
-        ProviderServicesDB.service_id == service_in.service_id
+        ProviderServicesDB.service_id == service_in.service_id,
     )
     if session.exec(statement).first():
         raise HTTPException(status_code=400, detail="Service already added to provider")
@@ -278,7 +280,7 @@ def add_provider_service(
     link = ProviderServicesDB(
         provider_id=provider.id,
         service_id=service_in.service_id,
-        custom_price=service_in.custom_price
+        custom_price=service_in.custom_price,
     )
     session.add(link)
     session.commit()
@@ -292,7 +294,7 @@ def add_provider_service(
         id=link.id,
         service_id=link.service_id,
         custom_price=link.custom_price,
-        service=service_public
+        service=service_public,
     )
 
 
@@ -301,7 +303,7 @@ def update_provider_service(
     service_link_id: uuid.UUID,
     service_update: ProviderServiceUpdate,
     session: SessionDep,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     Update a provider service link (e.g. custom price).
@@ -313,7 +315,9 @@ def update_provider_service(
         raise HTTPException(status_code=404, detail="Service link not found")
 
     if link.provider_id != provider.id:
-        raise HTTPException(status_code=403, detail="Not authorized to update this service")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to update this service"
+        )
 
     update_data = service_update.model_dump(exclude_unset=True)
     link.sqlmodel_update(update_data)
@@ -330,7 +334,7 @@ def update_provider_service(
         id=link.id,
         service_id=link.service_id,
         custom_price=link.custom_price,
-        service=service_public
+        service=service_public,
     )
 
 
@@ -338,7 +342,7 @@ def update_provider_service(
 def remove_provider_service(
     service_link_id: uuid.UUID,
     session: SessionDep,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     """
     Remove a service from the provider.
@@ -350,7 +354,9 @@ def remove_provider_service(
         raise HTTPException(status_code=404, detail="Service link not found")
 
     if link.provider_id != provider.id:
-        raise HTTPException(status_code=403, detail="Not authorized to remove this service")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to remove this service"
+        )
 
     session.delete(link)
     session.commit()
@@ -359,10 +365,7 @@ def remove_provider_service(
 
 
 @router.get("/{provider_id}", response_model=ProviderPublic)
-def get_provider(
-    provider_id: uuid.UUID,
-    session: SessionDep
-) -> Any:
+def get_provider(provider_id: uuid.UUID, session: SessionDep) -> Any:
     """
     Get a provider by ID (public).
     """
@@ -386,23 +389,25 @@ def read_providers(
     Retrieve providers.
     """
     statement = select(ProviderDB)
-    
+
     if business_name:
         statement = statement.where(ProviderDB.business_name.contains(business_name))
-    
+
     if is_available is not None:
         statement = statement.where(ProviderDB.is_available == is_available)
-        
+
     # Count query
     count = len(session.exec(statement).all())
-    
+
     statement = statement.offset(skip).limit(limit)
     providers = session.exec(statement).all()
-    
+
     return ProvidersPublic(data=providers, count=count)
 
 
-def _enrich_provider_booking(session: SessionDep, booking: BookingDB) -> BookingWithDetails:
+def _enrich_provider_booking(
+    session: SessionDep, booking: BookingDB
+) -> BookingWithDetails:
     """
     Enrich a booking with service details for provider view.
     """
@@ -422,7 +427,7 @@ def _enrich_provider_booking(session: SessionDep, booking: BookingDB) -> Booking
             user_profile = ProfilePublic(
                 full_name=profile_db.full_name,
                 phone=profile_db.phone,
-                avatar_url=profile_db.avatar_url
+                avatar_url=profile_db.avatar_url,
             )
 
     # Convert DB model to response model
@@ -447,5 +452,5 @@ def _enrich_provider_booking(session: SessionDep, booking: BookingDB) -> Booking
         updated_at=booking.updated_at,
         service=service,
         provider=None,
-        user_profile=user_profile
+        user_profile=user_profile,
     )
