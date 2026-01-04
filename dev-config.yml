@@ -1,0 +1,7 @@
+environment: local
+debug: true
+secrets:
+  # Encrypted "changethis"
+  POSTGRES_PASSWORD: gAAAAABpWlMT_ga7UFAOffnXEPhNk25xosG6Qh_K1nnm19SclPsBda8lq-ljleyZPHbUR7rfcL5mUI5m60ArM0rvUuz7iDMsKA==
+  FIRST_SUPERUSER_PASSWORD: gAAAAABpWlMT_ga7UFAOffnXEPhNk25xosG6Qh_K1nnm19SclPsBda8lq-ljleyZPHbUR7rfcL5mUI5m60ArM0rvUuz7iDMsKA==
+  SECRET_KEY: gAAAAABpWlNcAkRVTA9KZ7Re-rpQqMdXi9fkQMGUiRWTDy2upjIGx2QQpl0KpT6xLxiaQ0aH8TQsfe_15OBfUOcx7pMVe2FFhKEvvrWHzJK35FApL70X1BI=

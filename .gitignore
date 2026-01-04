@@ -1,13 +1,8 @@
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -22,33 +17,45 @@ sdist/
 var/
 wheels/
 share/python-wheels/
-*.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
-
-# Virtual Env
-.env
+*.egg-info/
 .venv
-env/
 venv/
 ENV/
-env.bak/
-venv.bak/
+env/
 
-# Editor
+# Environment Variables
+.env
+.env.*
+*.env
+
+# IDE / Editor
 .vscode/
 .idea/
+.DS_Store
 
-# Testing
+# Logs and Databases
+*.log
+*.db
+*.sqlite3
+celerybeat-schedule.db
+
+# Docker
+docker-compose.override.yml
+
+# Testing / Quality
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
 .coverage
 htmlcov/
-.pytest_cache/
+.cache/
 
-# MyPy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+# Local Config (Keep dev-config.yml as it may contain encrypted secrets for team)
+local-config.yml
+*-config.yml
+!dev-config.yml
 
-# Logs
-*.log
+# Other Secrets
+firebase-config.json

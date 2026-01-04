@@ -6,7 +6,7 @@ from typing import Any, Dict
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv("../.env")
+load_dotenv(".env")
 
 class SecretManager:
     _instance = None
@@ -24,7 +24,10 @@ class SecretManager:
         Load configuration from YAML file based on environment.
         """
         env = os.getenv("ENVIRONMENT", "local")
-        config_file = f"{env}-config.yml"
+        if env == "local":
+            config_file = "dev-config.yml"
+        else:
+            config_file = f"{env}-config.yml"
         
         # Look in backend root or current dir
         path = Path(config_file)
