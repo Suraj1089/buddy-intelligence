@@ -40,4 +40,8 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.assignment_tasks.notify_awaiting_bookings",
         "schedule": 60.0,  # Every minute
     },
+    "assign-upcoming-bookings": {
+        "task": "app.tasks.assignment_tasks.assign_upcoming_bookings",
+        "schedule": 3600.0,  # Every hour - picks up scheduled bookings 24h before service
+    },
 }

@@ -2,8 +2,9 @@
 Assignment background tasks for auto-assigning providers to bookings.
 """
 
+import math
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 from typing import Any, Dict
 
 from celery import shared_task
@@ -17,6 +18,34 @@ from app.booking_models import (
 )
 from app.core.db import engine
 from app.core.logging import logger
+
+
+def should_assign_now(booking: BookingDB) -> bool:
+    """
+    Determine if booking should be assigned now or deferred.
+    - Service date < 24 hours: Assign immediately
+    - Service date >= 24 hours: Defer until ~24h before service date
+    
+    Returns True if booking should be assigned now.
+    """
+    try:
+        service_time = dt_time.fromisoformat(booking.service_time)
+        service_datetime = datetime.combine(booking.service_date, service_time)
+        hours_until_service = (service_datetime - datetime.utcnow()).total_seconds() / 3600
+        
+        # Assign now if service is within 24 hours
+        return hours_until_service <= 24
+    except Exception as e:
+        logger.warning(
+            {
+                "event_type": "assignment_logic",
+                "event_name": "should_assign_now_error",
+                "booking_id": str(booking.id),
+                "error": str(e),
+            }
+        )
+        # Default to immediate assignment if we can't parse the date/time
+        return True
 
 
 @shared_task(bind=True, max_retries=3)
@@ -52,6 +81,23 @@ def process_new_booking(self, booking_id: str) -> dict[str, Any]:
                     }
                 )
                 return {"success": True, "message": "Booking already assigned"}
+
+            # Check if we should assign now or defer for later
+            if not should_assign_now(booking):
+                booking.status = "scheduled"
+                booking.provider_distance = "Provider will be assigned 24h before service"
+                session.add(booking)
+                session.commit()
+                logger.info(
+                    {
+                        "event_type": "task_execution",
+                        "event_name": "process_new_booking_deferred",
+                        "booking_id": str(booking_id),
+                        "service_date": str(booking.service_date),
+                        "service_time": booking.service_time,
+                    }
+                )
+                return {"success": True, "message": "Booking scheduled for deferred assignment"}
 
             # Find matching providers
             providers = find_matching_providers(session, booking)
@@ -296,6 +342,24 @@ def notify_providers(booking_id: str) -> Dict[str, Any]:
                         }
                     )
 
+            # Trigger WebSocket update for this provider (User)
+            try:
+                import requests
+                from app.core.config import settings
+                
+                # Assume localhost:8000 for internal comms if not specified
+                base_url = "http://localhost:8000" 
+                url = f"{base_url}{settings.API_V1_STR}/chat/internal/broadcast"
+                
+                requests.post(url, json={
+                    "type": "new_assignment",
+                    "user_id": str(provider.user_id),
+                    "booking_id": str(booking_id),
+                    "assignment_id": str(assignment.id)
+                }, timeout=2)
+            except Exception as e:
+                logger.warning(f"Failed to broadcast WS event: {e}")
+
     logger.info(
         {
             "event_type": "notification",
@@ -489,6 +553,142 @@ def check_bookings_needing_reassignment(session: Session) -> None:
     session.commit()
 
 
+@shared_task
+def assign_upcoming_bookings() -> dict[str, Any]:
+    """
+    Hourly task to assign providers to scheduled bookings that are 20-24 hours away.
+    This handles deferred assignments for bookings that were scheduled when created.
+    """
+    logger.info(
+        {
+            "event_type": "task_execution",
+            "event_name": "assign_upcoming_bookings_start",
+        }
+    )
+
+    triggered_count = 0
+
+    with Session(engine) as session:
+        # Find bookings with "scheduled" status
+        scheduled_bookings = session.exec(
+            select(BookingDB).where(
+                BookingDB.status == "scheduled",
+                BookingDB.provider_id.is_(None),
+            )
+        ).all()
+
+        for booking in scheduled_bookings:
+            # Check if this booking is now within 24 hours
+            if should_assign_now(booking):
+                logger.info(
+                    {
+                        "event_type": "task_execution",
+                        "event_name": "triggering_scheduled_booking",
+                        "booking_id": str(booking.id),
+                        "service_date": str(booking.service_date),
+                        "service_time": booking.service_time,
+                    }
+                )
+                # Reset status so process_new_booking can proceed
+                booking.status = "pending"
+                session.add(booking)
+                session.commit()
+                
+                # Trigger assignment
+                process_new_booking.delay(str(booking.id))
+                triggered_count += 1
+
+    logger.info(
+        {
+            "event_type": "task_execution",
+            "event_name": "assign_upcoming_bookings_complete",
+            "triggered_count": triggered_count,
+        }
+    )
+
+    return {"success": True, "triggered_count": triggered_count}
+
+
+def reassign_after_decline(session: Session, booking_id: uuid.UUID) -> bool:
+    """
+    After a provider declines, find the next best provider and create new assignment.
+    Excludes providers who have already been assigned (accepted, declined, expired).
+    
+    Returns True if a new provider was found and assigned.
+    """
+    booking = session.get(BookingDB, booking_id)
+    if not booking:
+        return False
+    
+    if booking.provider_id:
+        # Already assigned
+        return False
+    
+    # Get all provider IDs that have already been tried for this booking
+    existing_assignments = session.exec(
+        select(AssignmentQueueDB.provider_id).where(
+            AssignmentQueueDB.booking_id == booking_id
+        )
+    ).all()
+    
+    excluded_provider_ids = set(existing_assignments)
+    
+    # Find matching providers
+    all_providers = find_matching_providers(session, booking)
+    
+    # Filter out already-tried providers
+    available_providers = [
+        p for p in all_providers 
+        if p["provider_id"] not in excluded_provider_ids
+    ]
+    
+    if not available_providers:
+        booking.provider_distance = "No more providers available"
+        session.add(booking)
+        session.commit()
+        logger.info(
+            {
+                "event_type": "assignment_lifecycle",
+                "event_name": "no_more_providers",
+                "booking_id": str(booking_id),
+                "tried_count": len(excluded_provider_ids),
+            }
+        )
+        return False
+    
+    # Create assignment for the next best provider
+    expiry_time = datetime.utcnow() + timedelta(minutes=5)
+    next_provider = available_providers[0]
+    
+    assignment = AssignmentQueueDB(
+        id=uuid.uuid4(),
+        booking_id=booking_id,
+        provider_id=next_provider["provider_id"],
+        status="pending",
+        score=next_provider["score"],
+        notified_at=datetime.utcnow(),
+        expires_at=expiry_time,
+        created_at=datetime.utcnow(),
+    )
+    session.add(assignment)
+    session.commit()
+    
+    # Trigger notification
+    notify_providers.delay(str(booking_id))
+    
+    logger.info(
+        {
+            "event_type": "assignment_lifecycle",
+            "event_name": "reassignment_created",
+            "booking_id": str(booking_id),
+            "new_provider_id": str(next_provider["provider_id"]),
+            "distance": next_provider.get("distance"),
+        }
+    )
+    
+    return True
+
+
 import math
 
 
@@ -612,8 +812,9 @@ def find_matching_providers(
             {"provider_id": provider.id, "score": score, "distance": distance}
         )
 
-    # Sort by score descending
-    scored_providers.sort(key=lambda x: x["score"], reverse=True)
+    # Sort primarily by distance (closest first), then by score descending
+    # Use 999 as default distance for providers without location data
+    scored_providers.sort(key=lambda x: (x.get("distance") or 999, -x["score"]))
 
     logger.info(
         {

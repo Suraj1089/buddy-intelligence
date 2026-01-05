@@ -14,6 +14,7 @@ from app.api.routes import (
     users,
     utils,
     admin,
+    chat,
 )
 from app.core.config import settings
 
@@ -23,6 +24,7 @@ api_router.include_router(users.router)
 api_router.include_router(utils.router)
 api_router.include_router(items.router)
 api_router.include_router(admin.router)
+api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 
 # Booking system routes
 api_router.include_router(services.router)

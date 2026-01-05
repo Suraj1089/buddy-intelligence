@@ -156,13 +156,23 @@ def accept_assignment(
         session.commit()
         return AssignmentResponse(success=False, error="Assignment has expired")
 
-    # Check if booking already assigned
-    booking = session.get(BookingDB, assignment.booking_id)
+    # Use row-level locking to prevent race conditions
+    # When multiple providers try to accept simultaneously, only one will succeed
+    booking = session.exec(
+        select(BookingDB)
+        .where(BookingDB.id == assignment.booking_id)
+        .with_for_update()  # Lock the row until transaction completes
+    ).first()
 
     if not booking:
         return AssignmentResponse(success=False, error="Booking not found")
 
     if booking.provider_id:
+        # Another provider already accepted - mark this assignment as declined
+        assignment.status = "declined"
+        assignment.responded_at = datetime.utcnow()
+        session.add(assignment)
+        session.commit()
         return AssignmentResponse(
             success=False, error="Booking already assigned to another provider"
         )
@@ -265,14 +275,19 @@ def decline_assignment(
     )
     remaining_count = len(session.exec(statement).all())
 
-    # If no remaining pending assignments, update booking status
+    # If no remaining pending assignments, trigger automatic reassignment
     if remaining_count == 0:
+        from app.tasks.assignment_tasks import reassign_after_decline
+        
         booking = session.get(BookingDB, assignment.booking_id)
         if booking and not booking.provider_id:
-            booking.provider_distance = "Searching for more providers..."
+            booking.provider_distance = "Finding next available provider..."
             booking.updated_at = datetime.utcnow()
             session.add(booking)
             session.commit()
+            
+            # Trigger automatic reassignment to next best provider
+            reassign_after_decline(session, assignment.booking_id)
 
     return AssignmentResponse(success=True, message="Assignment declined")
 
@@ -323,4 +338,92 @@ def _enrich_assignment(
         notified_at=assignment.notified_at,
         expires_at=assignment.expires_at,
         booking=booking_with_details,
+    )
+
+
+@router.post("/bookings/{booking_id}/provider-cancel", response_model=AssignmentResponse)
+def provider_cancel_booking(
+    booking_id: uuid.UUID,
+    session: SessionDep,
+    current_user: User = Depends(get_current_user),
+) -> Any:
+    """
+    Provider cancels an already-accepted booking.
+    Triggers reassignment to next available provider.
+    """
+    from app.tasks.assignment_tasks import reassign_after_decline
+    
+    # Get provider ID
+    provider_id = get_provider_id_for_user(session, current_user.id)
+    
+    logger.info(
+        {
+            "event_type": "assignment_flow",
+            "event_name": "provider_cancel_booking",
+            "provider_id": str(provider_id),
+            "booking_id": str(booking_id),
+        }
+    )
+    
+    # Get the booking with lock
+    booking = session.exec(
+        select(BookingDB)
+        .where(BookingDB.id == booking_id)
+        .with_for_update()
+    ).first()
+    
+    if not booking:
+        return AssignmentResponse(success=False, error="Booking not found")
+    
+    # Verify this provider is assigned to the booking
+    if booking.provider_id != provider_id:
+        return AssignmentResponse(
+            success=False, error="You are not assigned to this booking"
+        )
+    
+    # Check if booking can be cancelled (not in progress or completed)
+    if booking.status in ["in_progress", "completed"]:
+        return AssignmentResponse(
+            success=False, error=f"Cannot cancel a booking that is {booking.status}"
+        )
+    
+    # Mark the accepted assignment as cancelled
+    assignment = session.exec(
+        select(AssignmentQueueDB).where(
+            AssignmentQueueDB.booking_id == booking_id,
+            AssignmentQueueDB.provider_id == provider_id,
+            AssignmentQueueDB.status == "accepted",
+        )
+    ).first()
+    
+    if assignment:
+        assignment.status = "cancelled"
+        assignment.responded_at = datetime.utcnow()
+        session.add(assignment)
+    
+    # Reset the booking
+    booking.provider_id = None
+    booking.status = "awaiting_provider"
+    booking.provider_distance = "Finding new provider..."
+    booking.estimated_arrival = None
+    booking.updated_at = datetime.utcnow()
+    session.add(booking)
+    session.commit()
+    
+    # Trigger reassignment to next available provider
+    reassign_after_decline(session, booking_id)
+    
+    logger.info(
+        {
+            "event_type": "assignment_flow",
+            "event_name": "provider_cancel_complete",
+            "booking_id": str(booking_id),
+            "previous_provider_id": str(provider_id),
+        }
+    )
+    
+    return AssignmentResponse(
+        success=True,
+        message="Booking cancelled. Finding new provider.",
+        booking_id=booking_id,
     )

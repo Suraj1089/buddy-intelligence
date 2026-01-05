@@ -470,3 +470,46 @@ class MessageResponse(BaseModel):
     """Generic message response."""
 
     message: str
+
+
+# --- Admin Schemas ---
+class AdminProviderCreate(BaseModel):
+    """Admin create provider request."""
+    user_id: uuid.UUID
+    business_name: str
+    description: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    city: str | None = None
+    is_available: bool = True
+    latitude: float | None = None
+    longitude: float | None = None
+    pincode: str | None = None
+
+
+class AdminProviderUpdate(BaseModel):
+    """Admin update provider request."""
+    business_name: str | None = None
+    description: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    city: str | None = None
+    is_available: bool | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    pincode: str | None = None
+    rating: float | None = None
+    experience_years: int | None = None
+
+
+class AdminBookingUpdate(BaseModel):
+    """Admin update booking request."""
+    status: str | None = None
+    provider_id: uuid.UUID | None = None
+    service_date: str | None = None  # YYYY-MM-DD format
+    service_time: str | None = None
+    location: str | None = None
+    final_price: float | None = None
+    estimated_price: float | None = None

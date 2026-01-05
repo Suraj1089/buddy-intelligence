@@ -126,3 +126,22 @@ class UserDeviceDB(SQLModel, table=True):
     fcm_token: str = Field(index=True)
     platform: str | None = None  # web, ios, android
     last_updated_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
+
+
+# Admin schemas for user management
+class AdminUserCreate(SQLModel):
+    """Admin create user request."""
+    email: EmailStr = Field(max_length=255)
+    password: str = Field(min_length=6, max_length=128)
+    full_name: str | None = Field(default=None, max_length=255)
+    is_active: bool = True
+    is_superuser: bool = False
+
+
+class AdminUserUpdate(SQLModel):
+    """Admin update user request."""
+    email: EmailStr | None = None
+    password: str | None = Field(default=None, min_length=6, max_length=128)
+    full_name: str | None = None
+    is_active: bool | None = None
+    is_superuser: bool | None = None
