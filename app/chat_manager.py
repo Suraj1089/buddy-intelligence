@@ -6,18 +6,23 @@ from fastapi import WebSocket
 
 class ConnectionManager:
     def __init__(self):
-        # user_id -> WebSocket
-        self.active_user_connections: Dict[UUID, WebSocket] = {}
+        # user_id -> List[WebSocket]
+        self.active_user_connections: Dict[UUID, List[WebSocket]] = {}
         # admin_id -> WebSocket
         self.active_admin_connections: Dict[UUID, WebSocket] = {}
 
     async def connect_user(self, user_id: UUID, websocket: WebSocket):
         await websocket.accept()
-        self.active_user_connections[user_id] = websocket
+        if user_id not in self.active_user_connections:
+            self.active_user_connections[user_id] = []
+        self.active_user_connections[user_id].append(websocket)
 
-    def disconnect_user(self, user_id: UUID):
+    def disconnect_user(self, user_id: UUID, websocket: WebSocket):
         if user_id in self.active_user_connections:
-            del self.active_user_connections[user_id]
+            if websocket in self.active_user_connections[user_id]:
+                self.active_user_connections[user_id].remove(websocket)
+            if not self.active_user_connections[user_id]:
+                del self.active_user_connections[user_id]
 
     async def connect_admin(self, admin_id: UUID, websocket: WebSocket):
         await websocket.accept()
@@ -35,11 +40,14 @@ class ConnectionManager:
             try:
                 await connection.send_json(message)
             except Exception:
-                # Handle disconnected clients gracefully if needed
                 pass
 
     async def send_to_user(self, user_id: UUID, message: Any):
         if user_id in self.active_user_connections:
-            await self.active_user_connections[user_id].send_json(message)
+            for connection in self.active_user_connections[user_id]:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    pass
 
 manager = ConnectionManager()

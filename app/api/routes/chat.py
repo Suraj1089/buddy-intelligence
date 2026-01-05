@@ -279,7 +279,7 @@ async def websocket_endpoint_user(
                     })
                     
     except WebSocketDisconnect:
-        manager.disconnect_user(conn_user_id)
+        manager.disconnect_user(conn_user_id, websocket)
 
 
 @router.websocket("/ws/admin")
